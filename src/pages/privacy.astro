@@ -1,6 +1,6 @@
 ---
 import SiteLayout from "../layouts/SiteLayout.astro";
-import { SITE, withBase } from "../lib/site";
+import { SITE } from "../lib/site";
 
 const effectiveDate = "September 2, 2026";
 const sections = [
@@ -97,12 +97,12 @@ const sections = [
         <section class="legal-section" id="rights">
           <h2>6. Your privacy rights</h2>
           <p>Depending on where you live, you may have rights to request a copy, correction, deletion, restriction, objection, portability, or information about certain processing, and to withdraw consent where processing relies on consent.</p>
-          <p>To make a privacy request, start through our <a href={withBase("support/")}>Support page</a>. Do not post personal information, device identifiers, or credentials in the public issue tracker.</p>
+          <p>For privacy questions, use the <a href={SITE.issues}>project issue tracker</a>. Do not post personal information, device identifiers, or credentials publicly; ask for a private follow-up.</p>
         </section>
 
         <section class="legal-section" id="children">
           <h2>7. Children’s privacy</h2>
-          <p>NutCracker Tools is not directed to children under 13, and we do not knowingly seek personal information from children. If you believe a child has provided personal information, contact us through the Support page.</p>
+          <p>NutCracker Tools is not directed to children under 13, and we do not knowingly seek personal information from children. If you believe a child has provided personal information, contact us using the method in Section 9.</p>
         </section>
 
         <section class="legal-section" id="security">
@@ -114,7 +114,7 @@ const sections = [
         <section class="legal-section" id="changes">
           <h2>9. Changes and contact</h2>
           <p>We may update this policy when the app, website, service providers, legal requirements, or privacy controls change. We will revise the effective date when we do.</p>
-          <p>Questions can be started through the <a href={withBase("support/")}>NutCracker Tools Support page</a> or the <a href={SITE.issues}>project issue tracker</a>. Do not place sensitive information in a public issue.</p>
+          <p>Questions can be started through the <a href={SITE.issues}>project issue tracker</a>. Do not place sensitive information in a public issue; ask for a private follow-up.</p>
           <p><strong>Operator:</strong> {SITE.operator}<br /><strong>Product:</strong> {SITE.name}<br /><strong>Android package:</strong> {SITE.packageName}<br /><strong>Effective date:</strong> {effectiveDate}</p>
         </section>
       </article>
