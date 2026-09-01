@@ -1,0 +1,20 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import Icon from "../components/Icon.astro";
+import { withBase } from "../lib/site";
+---
+
+<SiteLayout title="Page not found" noIndex={true}>
+  <section class="not-found">
+    <div class="shell">
+      <img class="not-found__mark" src={withBase("brand-mark.svg")} alt="" width="92" height="92" />
+      <span class="eyebrow" style="margin-top: 28px">Error 404</span>
+      <h1>This one slipped through the crack.</h1>
+      <p>The page may have moved, the address may be incomplete, or the resource is no longer part of this site.</p>
+      <div class="hero__actions">
+        <a class="button button--primary" href={withBase()}>Back home <Icon name="arrow" size={17} /></a>
+        <a class="button button--secondary" href={withBase("support/")}>Open support</a>
+      </div>
+    </div>
+  </section>
+</SiteLayout>

@@ -1,0 +1,178 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import Icon from "../components/Icon.astro";
+import { dashboardTools, NUTCRACKER_ANDROID_PACKAGE } from "../data/tools";
+import { SITE, withBase } from "../lib/site";
+
+const workflow = [
+  {
+    title: "Explore before you change anything",
+    body: "Check heroes, roles, lanes, skills, counters, combos, skins, and preparation resources in a focused catalog.",
+  },
+  {
+    title: "Choose the right access route",
+    body: "Use Folder access when available, Direct storage on Android 10 and earlier, or advanced Wireless ADB on newer Android versions.",
+  },
+  {
+    title: "Review, apply, and keep a record",
+    body: "Inspect supported files, follow progress, retain install history, and use rollback-minded recovery when an operation is interrupted.",
+  },
+];
+
+const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#library", "dashboard/#library", "support/#installing", "dashboard/#activity"];
+---
+
+<SiteLayout page="home">
+  <section class="hero">
+    <div class="hero__grid shell">
+      <div class="hero__copy">
+        <span class="eyebrow">NutCracker Tools · Android</span>
+        <h1>Your game tools, <em>cracked open.</em></h1>
+        <p class="hero__lead">
+          Explore heroes, understand matchups, preview resources, and manage local installs from one calm, focused companion.
+        </p>
+        <div class="hero__actions">
+          <a class="button button--primary" href={withBase("dashboard/")}>
+            Explore the dashboard <Icon name="arrow" size={18} />
+          </a>
+          <a class="button button--secondary" href={SITE.releases}>
+            <Icon name="download" size={18} /> Download for Android
+          </a>
+        </div>
+        <div class="hero__trust" aria-label="Product principles">
+          <span class="trust-item"><Icon name="check" size={16} /> Android 8.0+</span>
+          <span class="trust-item"><Icon name="check" size={16} /> Local-first file workflow</span>
+          <span class="trust-item"><Icon name="check" size={16} /> Consent-aware ads</span>
+        </div>
+      </div>
+
+      <div class="phone-stage" aria-label="NutCracker Tools dashboard preview">
+        <div class="floating-card floating-card--one">
+          <small>Access status</small>
+          <strong><Icon name="check" size={16} /> Folder ready</strong>
+        </div>
+        <div class="floating-card floating-card--two">
+          <small>Recovery</small>
+          <strong><Icon name="shield" size={16} /> Rollback-minded</strong>
+        </div>
+        <div class="phone">
+          <div class="phone__top">
+            <div class="phone__brand"><img src={withBase("brand-mark.svg")} alt="" width="34" height="34" /> NutCracker</div>
+            <span class="phone__avatar">NCT</span>
+          </div>
+          <div class="phone__content">
+            <div class="phone__greeting">
+              <small>Dashboard</small>
+              <h2>Ready when you are.</h2>
+            </div>
+            <div class="phone__feature">
+              <span class="chip">Featured hero</span>
+              <h3>Know the matchup</h3>
+              <p>Skills, counters, combos, and lane insight in one view.</p>
+            </div>
+            <div class="phone__stats">
+              <div class="phone-stat"><small>Durability</small><strong>Strong</strong><span style="--meter: 78%"></span></div>
+              <div class="phone-stat"><small>Offense</small><strong>High</strong><span style="--meter: 86%"></span></div>
+              <div class="phone-stat"><small>Difficulty</small><strong>Medium</strong><span style="--meter: 58%"></span></div>
+            </div>
+            <div class="phone__tools">
+              <div class="phone-tool"><span><Icon name="guide" size={16} /></span> Heroes</div>
+              <div class="phone-tool"><span><Icon name="spark" size={16} /></span> Skins</div>
+              <div class="phone-tool"><span><Icon name="tools" size={16} /></span> Preparation</div>
+              <div class="phone-tool"><span><Icon name="history" size={16} /></span> History</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="proof-strip" aria-label="NutCracker Tools at a glance">
+    <div class="proof-strip__inner shell">
+      <div class="proof-item"><strong>Android 8.0+</strong><span>Current minimum supported version</span></div>
+      <div class="proof-item"><strong>3 access routes</strong><span>Folder, legacy storage, or Wireless ADB</span></div>
+      <div class="proof-item"><strong>No account</strong><span>Core app use does not require sign-in</span></div>
+      <div class="proof-item"><strong>{NUTCRACKER_ANDROID_PACKAGE}</strong><span>Official Android package identity</span></div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="shell">
+      <div class="section-heading section-heading--center" data-reveal>
+        <span class="eyebrow">One focused toolkit</span>
+        <h2>Useful before, during, and after every change.</h2>
+        <p>NutCracker Tools brings discovery, preparation, installation, and recovery context into a single Android workflow.</p>
+      </div>
+      <div class="feature-grid">
+        {dashboardTools.map((tool, index) => (
+          <article class="feature-card card" data-reveal>
+            <div class="feature-card__icon"><Icon name={tool.icon} size={23} /></div>
+            <h3>{tool.title}</h3>
+            <p>{tool.summary}</p>
+            <a class="feature-card__link" href={withBase(featureLinks[index])}>See how it works <Icon name="arrow" size={15} /></a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--compact">
+    <div class="workflow shell">
+      <div class="workflow__sticky section-heading" data-reveal>
+        <span class="eyebrow">A deliberate workflow</span>
+        <h2>Understand first. Apply second.</h2>
+        <p>The app is designed around explicit choices: what you selected, where it will go, and which access method it will use.</p>
+        <a class="button button--secondary" href={withBase("support/#setup")} style="margin-top: 28px">
+          Read the setup guide <Icon name="arrow" size={17} />
+        </a>
+      </div>
+      <div class="workflow__steps">
+        {workflow.map((step) => (
+          <article class="workflow-step" data-reveal>
+            <span class="workflow-step__number" aria-hidden="true"></span>
+            <div><h3>{step.title}</h3><p>{step.body}</p></div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--compact">
+    <div class="privacy-callout shell" data-reveal>
+      <div class="privacy-callout__copy">
+        <span class="eyebrow">Privacy with specifics</span>
+        <h2>Clear about what stays local—and what uses Google services.</h2>
+        <p>
+          Search text, selected archives, folder access, and ADB pairing stay on your device. The app also uses Firebase for reliability and product analytics, Google Mobile Ads after its consent flow permits requests, and opt-in cloud messaging.
+        </p>
+        <div class="privacy-callout__actions">
+          <a class="button button--primary" href={withBase("privacy/")}>Read the privacy policy <Icon name="arrow" size={17} /></a>
+          <a class="button button--ghost" href={withBase("dashboard/#privacy")}>Open privacy center</a>
+        </div>
+      </div>
+      <div class="privacy-callout__icon"><Icon name="privacy" size={52} strokeWidth={1.45} /></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="cta-panel shell" data-reveal>
+      <h2>Explore the workflow before installing the app.</h2>
+      <p>The web dashboard includes an Android-version setup assistant, searchable feature catalog, local activity notes, and direct access to support and privacy details.</p>
+      <div class="cta-panel__actions">
+        <a class="button button--primary" href={withBase("dashboard/")}>Open web dashboard <Icon name="arrow" size={18} /></a>
+        <a class="button button--secondary" href={withBase("support/")}>Visit support</a>
+      </div>
+    </div>
+  </section>
+
+  <script type="application/ld+json" is:inline set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE.name,
+    applicationCategory: "UtilitiesApplication",
+    operatingSystem: "Android 8.0 and later",
+    softwareVersion: SITE.version,
+    description: SITE.description,
+    url: `${SITE.pagesOrigin}${SITE.pagesPath}/`,
+  })}></script>
+</SiteLayout>

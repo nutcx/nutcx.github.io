@@ -1,0 +1,73 @@
+---
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { SITE, canonicalUrl, type PageKey, withBase } from "../lib/site";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  page?: PageKey;
+  noIndex?: boolean;
+  bodyClass?: string;
+}
+
+const {
+  title = SITE.name,
+  description = SITE.description,
+  page = "home",
+  noIndex = false,
+  bodyClass = "",
+} = Astro.props;
+const documentTitle = title === SITE.name ? title : `${title} · ${SITE.name}`;
+const canonical = canonicalUrl(Astro.url.pathname.replace(import.meta.env.BASE_URL, ""));
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#17110f" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content={description} />
+    {noIndex && <meta name="robots" content="noindex" />}
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={withBase("favicon.svg")} />
+    <link rel="manifest" href={withBase("site.webmanifest")} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={documentTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={canonicalUrl("social-card.svg")} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={documentTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={canonicalUrl("social-card.svg")} />
+    <title>{documentTitle}</title>
+    <script is:inline>
+      (() => {
+        try {
+          const saved = localStorage.getItem("nutcx-theme");
+          const theme = saved === "light" || saved === "dark"
+            ? saved
+            : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          document.documentElement.dataset.theme = theme;
+        } catch { /* Use the document default. */ }
+      })();
+    </script>
+  </head>
+  <body class={bodyClass} data-page={page}>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <Header active={page} />
+    <main id="main-content">
+      <slot />
+    </main>
+    <Footer />
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" data-toast></div>
+    <script>
+      import "../scripts/site";
+    </script>
+  </body>
+</html>

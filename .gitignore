@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Astro build output and generated types
+dist/
+.astro/
+
+# Local environment values
+.env
+.env.*
+!.env.example
+
+# Tooling and editor state
+*.log
+pnpm-debug.log*
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Operating system files
+.DS_Store
+Thumbs.db

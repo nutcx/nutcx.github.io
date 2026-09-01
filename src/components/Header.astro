@@ -1,0 +1,64 @@
+---
+import Icon from "./Icon.astro";
+import { SITE, type PageKey, withBase } from "../lib/site";
+
+interface Props {
+  active?: PageKey;
+}
+
+const { active = "home" } = Astro.props;
+const navigation: Array<{ label: string; href: string; key: PageKey }> = [
+  { label: "Home", href: "", key: "home" },
+  { label: "Dashboard", href: "dashboard/", key: "dashboard" },
+  { label: "Support", href: "support/", key: "support" },
+  { label: "Privacy", href: "privacy/", key: "privacy" },
+];
+---
+
+<header class="site-header" data-site-header>
+  <div class="site-header__inner shell">
+    <a class="brand" href={withBase()} aria-label={`${SITE.name} home`}>
+      <img src={withBase("brand-mark.svg")} alt="" width="42" height="42" />
+      <span class="brand__copy">
+        <strong>{SITE.name}</strong>
+        <small>Android companion</small>
+      </span>
+    </a>
+
+    <button
+      class="icon-button nav-toggle"
+      type="button"
+      aria-label="Open navigation"
+      aria-controls="primary-navigation"
+      aria-expanded="false"
+      data-nav-toggle
+    >
+      <span data-nav-icon-open><Icon name="menu" /></span>
+      <span data-nav-icon-close hidden><Icon name="x" /></span>
+    </button>
+
+    <nav class="primary-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
+      <div class="primary-nav__links">
+        {navigation.map((item) => (
+          <a
+            href={withBase(item.href)}
+            aria-current={active === item.key ? "page" : undefined}
+            class:list={["nav-link", { "is-active": active === item.key }]}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+      <div class="primary-nav__actions">
+        <button class="icon-button" type="button" aria-label="Switch color theme" data-theme-toggle>
+          <span data-theme-icon-light><Icon name="sun" /></span>
+          <span data-theme-icon-dark hidden><Icon name="moon" /></span>
+        </button>
+        <a class="button button--small button--primary" href={withBase("dashboard/")}>
+          Open dashboard
+          <Icon name="arrow" size={17} />
+        </a>
+      </div>
+    </nav>
+  </div>
+</header>

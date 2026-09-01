@@ -1,0 +1,26 @@
+export const SITE = {
+  name: "NutCracker Tools",
+  shortName: "NutCracker",
+  description:
+    "A focused Android companion for hero guides, matchup insight, resource previews, preparation items, and safer local installs.",
+  packageName: "com.nutcx.tools",
+  version: "1.0.0",
+  repository: "https://github.com/kaizokuo-gfx/nutcracker-tools",
+  issues: "https://github.com/kaizokuo-gfx/nutcracker-tools/issues",
+  releases: "https://github.com/kaizokuo-gfx/nutcracker-tools/releases",
+  pagesOrigin: "https://kaizokuo-gfx.github.io",
+  pagesPath: "/nutcracker-tools",
+} as const;
+
+export type PageKey = "home" | "dashboard" | "support" | "privacy" | "terms";
+
+export function withBase(path = ""): string {
+  const base = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  return `${base}${path.replace(/^\//, "")}`;
+}
+
+export function canonicalUrl(path = ""): string {
+  return new URL(withBase(path), SITE.pagesOrigin).toString();
+}

@@ -1,0 +1,39 @@
+---
+import Icon from "./Icon.astro";
+import { SITE, withBase } from "../lib/site";
+---
+
+<footer class="site-footer">
+  <div class="site-footer__main shell">
+    <div class="site-footer__brand">
+      <a class="brand brand--footer" href={withBase()}>
+        <img src={withBase("brand-mark.svg")} alt="" width="48" height="48" />
+        <span class="brand__copy"><strong>{SITE.name}</strong><small>{SITE.packageName}</small></span>
+      </a>
+      <p>Clear guidance, deliberate access, and a safer local workflow for the tools you use on Android.</p>
+      <span class="status-pill"><span></span> Website operational</span>
+    </div>
+
+    <div class="footer-group">
+      <h2>Product</h2>
+      <a href={withBase("dashboard/")}>Dashboard</a>
+      <a href={withBase("#features")}>Features</a>
+      <a href={SITE.releases}>Releases <Icon name="external" size={14} /></a>
+    </div>
+    <div class="footer-group">
+      <h2>Help</h2>
+      <a href={withBase("support/")}>Support center</a>
+      <a href={withBase("support/#setup")}>Setup guide</a>
+      <a href={SITE.issues}>Report an issue <Icon name="external" size={14} /></a>
+    </div>
+    <div class="footer-group">
+      <h2>Legal</h2>
+      <a href={withBase("privacy/")}>Privacy policy</a>
+      <a href={withBase("terms/")}>Terms of use</a>
+    </div>
+  </div>
+  <div class="site-footer__bottom shell">
+    <p>© <span data-current-year>2026</span> Kaizoku GFX. All rights reserved.</p>
+    <p>NutCracker Tools is an independent companion and is not affiliated with or endorsed by Moonton.</p>
+  </div>
+</footer>

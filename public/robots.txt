@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kaizokuo-gfx.github.io/nutcracker-tools/sitemap.xml

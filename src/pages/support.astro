@@ -1,0 +1,93 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import Icon from "../components/Icon.astro";
+import { faqCategories, supportFaqs } from "../data/faqs";
+import { SITE, withBase } from "../lib/site";
+
+const slug = (value: string) => value.toLowerCase().replaceAll(" ", "-").replaceAll("and-", "");
+---
+
+<SiteLayout
+  title="Support"
+  description="Setup guidance, troubleshooting, installation safety, and answers for NutCracker Tools on Android."
+  page="support"
+>
+  <header class="page-hero">
+    <div class="page-hero__inner shell">
+      <span class="eyebrow">Support center</span>
+      <h1>Find the next clear step.</h1>
+      <p>Search verified guidance for Android compatibility, access setup, resources, installs, recovery, notifications, and privacy.</p>
+      <div class="page-hero__meta">
+        <span class="chip chip--warm">Android 8.0+</span>
+        <span class="chip">Package · com.nutcx.tools</span>
+        <span class="chip chip--teal">No account required</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="section section--flush-top">
+    <div class="support-layout shell">
+      <aside class="support-aside">
+        <div class="aside-card">
+          <h2>Need project support?</h2>
+          <p>Open a GitHub issue with your Android version, selected access method, and the exact status shown by NutCracker Tools. Never post pairing codes, private files, or credentials.</p>
+          <a class="button button--primary button--small" href={SITE.issues}>Open an issue <Icon name="external" size={15} /></a>
+        </div>
+        <div class="aside-card">
+          <h2>Privacy question?</h2>
+          <p>Read the app-and-website policy first. For a private follow-up request, open an issue without personal details and ask for a private contact channel.</p>
+          <a class="button button--secondary button--small" href={withBase("privacy/")}>Privacy policy</a>
+        </div>
+      </aside>
+
+      <div class="support-main">
+        <label class="support-search">
+          <span class="sr-only">Search support questions</span>
+          <Icon name="search" size={20} />
+          <input class="input" type="search" autocomplete="off" placeholder="Search setup, ADB, installs, privacy…" data-faq-search />
+        </label>
+
+        <section class="faq-section" id="setup" data-faq-section="quick-start">
+          <h2>Safe setup checklist</h2>
+          <div class="safety-checklist">
+            <article class="safety-item"><Icon name="check" size={18} /><div><strong>Confirm the target package</strong><p>Use the package your selected resource was built for.</p></div></article>
+            <article class="safety-item"><Icon name="check" size={18} /><div><strong>Use the least access needed</strong><p>Try Folder access before advanced ADB when Android permits it.</p></div></article>
+            <article class="safety-item"><Icon name="check" size={18} /><div><strong>Review before applying</strong><p>Check recognized, ignored, and conflicting files in the install review.</p></div></article>
+            <article class="safety-item"><Icon name="check" size={18} /><div><strong>Let recovery finish</strong><p>Reconnect the original access route if an interrupted install is pending recovery.</p></div></article>
+          </div>
+        </section>
+
+        {faqCategories.map((category) => {
+          const categoryFaqs = supportFaqs.filter((faq) => faq.category === category);
+          const sectionId = category === "Installing" ? "installing" : slug(category);
+          return (
+            <section class="faq-section" id={sectionId} data-faq-section={sectionId}>
+              <h2>{category}</h2>
+              <div class="faq-list">
+                {categoryFaqs.map((faq) => (
+                  <details
+                    class="faq-item"
+                    id={faq.id}
+                    data-faq-item
+                    data-faq-search-text={`${faq.question} ${faq.answer} ${faq.keywords.join(" ")}`.toLowerCase()}
+                  >
+                    <summary>{faq.question}<Icon name="chevron" size={18} /></summary>
+                    <div class="faq-answer"><p>{faq.answer}</p></div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+        <div class="support-empty" data-faq-empty>
+          <h2>No matching answer</h2>
+          <p>Try a shorter search such as “ADB,” “ZIP,” “folder,” or “privacy.”</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import "../scripts/support";
+  </script>
+</SiteLayout>

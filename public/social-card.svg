@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">NutCracker Tools</title>
+  <desc id="desc">Hero insights, local resources, and safer installs in one Android companion.</desc>
+  <defs>
+    <radialGradient id="glow" cx="84%" cy="18%" r="75%">
+      <stop stop-color="#6e351e"/>
+      <stop offset=".52" stop-color="#211615"/>
+      <stop offset="1" stop-color="#10131b"/>
+    </radialGradient>
+    <linearGradient id="nutL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f19a4b"/><stop offset="1" stop-color="#a94e24"/></linearGradient>
+    <linearGradient id="nutR" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dc7932"/><stop offset="1" stop-color="#74301d"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <circle cx="1000" cy="102" r="248" fill="#ff8a00" opacity=".07"/>
+  <circle cx="1080" cy="548" r="300" fill="#2dd4bf" opacity=".04"/>
+  <g transform="translate(90 92) scale(1.65)">
+    <rect width="108" height="108" rx="27" fill="#17110f" stroke="#7c5040"/>
+    <path fill="#ffd166" d="M53.5 38c6 3 6.5 9 2.5 12 5 3 5 9 0 12 4 4 3 10-3 14-4-4-4-9 0-13-5-4-5-9 0-13-4-4-3.5-9 0-12Z"/>
+    <path fill="url(#nutL)" d="M50 21c-14-1-25 10-28 26-3 17 4 32 19 39 3 1.5 6 2 9 1V75l-6-7 6-8-6-8 6-8-5-8 5-7Z"/>
+    <path fill="url(#nutR)" d="M58 21c14-1 25 10 28 26 3 17-4 32-19 39-3 1.5-6 2-9 1V75l6-7-6-8 6-8-6-8 5-8-5-7Z"/>
+  </g>
+  <text x="90" y="368" fill="#fff3e4" font-family="Arial, sans-serif" font-size="78" font-weight="750" letter-spacing="-3">NutCracker Tools</text>
+  <text x="94" y="432" fill="#d9c4bb" font-family="Arial, sans-serif" font-size="30">Hero insights. Local resources. Safer installs.</text>
+  <rect x="94" y="492" width="268" height="54" rx="27" fill="#ff8a00"/>
+  <text x="228" y="528" text-anchor="middle" fill="#241512" font-family="Arial, sans-serif" font-size="22" font-weight="700">ANDROID COMPANION</text>
+</svg>

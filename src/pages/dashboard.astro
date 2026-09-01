@@ -1,0 +1,198 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import Icon from "../components/Icon.astro";
+import { dashboardTools, NUTCRACKER_ANDROID_PACKAGE } from "../data/tools";
+import { SITE, withBase } from "../lib/site";
+
+const categoryForTool: Record<string, "discover" | "install" | "recovery"> = {
+  "hero-explorer": "discover",
+  "matchup-guide": "discover",
+  "skin-library": "discover",
+  "preparation-catalog": "discover",
+  "zip-installer": "install",
+  "install-history": "recovery",
+};
+---
+
+<SiteLayout
+  title="Dashboard"
+  description="Explore the NutCracker Tools feature map, find the right Android access method, and keep local setup notes in your browser."
+  page="dashboard"
+  bodyClass="dashboard-page"
+>
+  <div class="dashboard-wrap">
+    <div class="dashboard-shell">
+      <aside class="dash-sidebar" aria-label="Dashboard sections">
+        <div class="dash-sidebar__intro">
+          <small>Web companion</small>
+          <strong>Control center</strong>
+        </div>
+        <nav class="dash-nav">
+          <a class="is-active" href="#overview"><Icon name="dashboard" size={17} /> Overview</a>
+          <a href="#setup"><Icon name="settings" size={17} /> Setup</a>
+          <a href="#library"><Icon name="tools" size={17} /> Tool library</a>
+          <a href="#activity"><Icon name="history" size={17} /> Activity</a>
+          <a href="#privacy"><Icon name="privacy" size={17} /> Privacy</a>
+        </nav>
+        <div class="dash-sidebar__note">
+          <strong><Icon name="shield" size={15} /> Local companion</strong>
+          <p>This website cannot access Android files or ADB. Your dashboard selections remain in this browser.</p>
+        </div>
+      </aside>
+
+      <div class="dash-main">
+        <header class="dash-topbar" id="overview">
+          <div>
+            <small>NutCracker Tools · Web companion</small>
+            <h1>Plan with confidence.</h1>
+          </div>
+          <div class="dash-topbar__actions">
+            <button
+              class="button button--secondary button--small"
+              type="button"
+              data-copy={NUTCRACKER_ANDROID_PACKAGE}
+              data-copy-message="Android package copied"
+            >
+              <Icon name="copy" size={15} /> {NUTCRACKER_ANDROID_PACKAGE}
+            </button>
+            <a class="button button--primary button--small" href={SITE.releases}>
+              <Icon name="download" size={15} /> Releases
+            </a>
+          </div>
+        </header>
+
+        <div class="dashboard-grid">
+          <article class="dash-card metric-card">
+            <div class="metric-card__top"><small>Core spaces</small><span class="metric-card__icon"><Icon name="dashboard" size={18} /></span></div>
+            <strong>6</strong><p>Dashboard through Settings</p>
+          </article>
+          <article class="dash-card metric-card">
+            <div class="metric-card__top"><small>Access routes</small><span class="metric-card__icon"><Icon name="folder" size={18} /></span></div>
+            <strong>3</strong><p>Folder, legacy, or ADB</p>
+          </article>
+          <article class="dash-card metric-card">
+            <div class="metric-card__top"><small>Minimum Android</small><span class="metric-card__icon"><Icon name="tools" size={18} /></span></div>
+            <strong>8.0</strong><p>Feature availability can vary</p>
+          </article>
+          <article class="dash-card metric-card">
+            <div class="metric-card__top"><small>Account required</small><span class="metric-card__icon"><Icon name="privacy" size={18} /></span></div>
+            <strong>No</strong><p>Current app has no login</p>
+          </article>
+
+          <section class="dash-card setup-card" id="setup" aria-labelledby="setup-title">
+            <div class="dash-card__header">
+              <div><h2 id="setup-title">Access setup assistant</h2><p>Get a route recommendation without sending device details anywhere.</p></div>
+              <span class="chip chip--teal">Runs locally</span>
+            </div>
+            <form data-setup-form>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="android-version">Android version</label>
+                  <select class="select" id="android-version" name="version" required data-android-version>
+                    <option value="">Choose a version</option>
+                    <option value="8-10">Android 8–10</option>
+                    <option value="11-12">Android 11–12</option>
+                    <option value="13+">Android 13 or later</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="folder-status">Can Android select the target folder?</label>
+                  <select class="select" id="folder-status" name="folder" required data-folder-status>
+                    <option value="">Choose an answer</option>
+                    <option value="yes">Yes / not tried yet</option>
+                    <option value="blocked">No, it is blocked</option>
+                  </select>
+                </div>
+              </div>
+              <div class="setup-actions">
+                <button class="button button--primary button--small" type="submit">Recommend a route <Icon name="arrow" size={15} /></button>
+                <button class="button button--ghost button--small" type="button" data-reset-setup>Reset</button>
+              </div>
+            </form>
+            <div class="setup-result" role="status" aria-live="polite" data-setup-result>
+              <strong><Icon name="check" size={17} /> <span data-result-title></span></strong>
+              <p data-result-description></p>
+              <ul data-result-requirements></ul>
+            </div>
+          </section>
+
+          <section class="dash-card activity-card" id="activity" aria-labelledby="activity-title">
+            <div class="dash-card__header">
+              <div><h2 id="activity-title">Local activity</h2><p>Recent web-companion actions on this browser.</p></div>
+              <button class="button button--ghost button--small" type="button" data-clear-activity>Clear</button>
+            </div>
+            <div class="activity-list" data-activity-list></div>
+            <div class="empty-state" data-activity-empty>
+              <div><span class="empty-state__icon"><Icon name="history" size={22} /></span><strong>No activity yet</strong><p>Run the setup assistant or review a tool to create a local note.</p></div>
+            </div>
+          </section>
+
+          <section class="dash-card library-card" id="library" aria-labelledby="library-title">
+            <div class="dash-card__header">
+              <div><h2 id="library-title">Tool library</h2><p>Explore what the Android app can help you discover and manage.</p></div>
+              <span class="chip chip--warm">Android app features</span>
+            </div>
+            <div class="filter-bar">
+              <label class="search-field">
+                <span class="sr-only">Search tools</span>
+                <Icon name="search" size={17} />
+                <input class="input" type="search" placeholder="Search tools and capabilities" autocomplete="off" data-tool-search />
+              </label>
+              <div class="segmented" role="group" aria-label="Filter tools">
+                <button class="is-active" type="button" data-tool-filter="all" aria-pressed="true">All</button>
+                <button type="button" data-tool-filter="discover" aria-pressed="false">Discover</button>
+                <button type="button" data-tool-filter="install" aria-pressed="false">Install</button>
+                <button type="button" data-tool-filter="recovery" aria-pressed="false">Recovery</button>
+              </div>
+            </div>
+            <div class="tool-grid" data-tool-grid>
+              {dashboardTools.map((tool) => (
+                <article
+                  class="tool-card"
+                  data-tool-card
+                  data-tool-id={tool.id}
+                  data-tool-category={categoryForTool[tool.id]}
+                  data-tool-search-text={`${tool.title} ${tool.eyebrow} ${tool.summary} ${tool.highlights.join(" ")}`.toLowerCase()}
+                >
+                  <div class="tool-card__top"><span class="tool-card__icon"><Icon name={tool.icon} size={20} /></span><span class="chip">{tool.eyebrow}</span></div>
+                  <h3>{tool.title}</h3>
+                  <p>{tool.summary}</p>
+                  <div class="tool-card__meta">{tool.highlights.slice(0, 2).map((item) => <span>{item}</span>)}</div>
+                  <button class="button button--ghost button--small" type="button" data-review-tool={tool.title} style="justify-self: start; margin-top: 13px; padding-inline: 0">
+                    Mark reviewed <Icon name="check" size={14} />
+                  </button>
+                </article>
+              ))}
+            </div>
+            <div class="no-results" data-tool-empty><strong>No tools match that search.</strong><p>Try a broader term or choose All.</p></div>
+          </section>
+
+          <section class="dash-card privacy-card" id="privacy" aria-labelledby="privacy-title">
+            <div class="dash-card__header">
+              <div><h2 id="privacy-title">Web privacy center</h2><p>Controls for this website. Android app controls are available inside the app’s Settings.</p></div>
+              <a class="button button--secondary button--small" href={withBase("privacy/")}>Full policy <Icon name="arrow" size={15} /></a>
+            </div>
+            <div class="privacy-grid">
+              <div class="privacy-item">
+                <div class="privacy-item__top"><strong>Website analytics</strong><span class="privacy-badge">Not installed</span></div>
+                <p>This static site does not add analytics trackers or advertising cookies.</p>
+              </div>
+              <div class="privacy-item">
+                <div class="privacy-item__top"><strong>Dashboard preferences</strong><span class="privacy-badge">This browser</span></div>
+                <p>Theme, setup choices, and activity notes use local browser storage only.</p>
+              </div>
+              <div class="privacy-item">
+                <div class="privacy-item__top"><strong>Erase website data</strong><button class="button button--secondary button--small" type="button" data-clear-dashboard-data>Erase</button></div>
+                <p>Remove dashboard selections, local activity, and theme preference from this browser.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import "../scripts/dashboard";
+  </script>
+</SiteLayout>

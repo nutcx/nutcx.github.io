@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-labelledby="title desc">
+  <title id="title">NutCracker Tools cracked nut</title>
+  <desc id="desc">A minimal split nut with a bright, lightning-shaped crack.</desc>
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="44%" r="72%">
+      <stop offset="0" stop-color="#3a2117"/>
+      <stop offset="1" stop-color="#10131b"/>
+    </radialGradient>
+    <linearGradient id="left" x1="25" y1="26" x2="49" y2="84">
+      <stop stop-color="#e99045"/>
+      <stop offset="1" stop-color="#a94e24"/>
+    </linearGradient>
+    <linearGradient id="right" x1="59" y1="26" x2="83" y2="84">
+      <stop stop-color="#d67532"/>
+      <stop offset="1" stop-color="#84351d"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" rx="27" fill="url(#bg)"/>
+  <path fill="#ffd166" d="M53.5 38c6 3 6.5 9 2.5 12 5 3 5 9 0 12 4 4 3 10-3 14-4-4-4-9 0-13-5-4-5-9 0-13-4-4-3.5-9 0-12Z"/>
+  <path fill="url(#left)" d="M50 21c-14-1-25 10-28 26-3 17 4 32 19 39 3 1.5 6 2 9 1V75l-6-7 6-8-6-8 6-8-5-8 5-7Z"/>
+  <path fill="url(#right)" d="M58 21c14-1 25 10 28 26 3 17-4 32-19 39-3 1.5-6 2-9 1V75l6-7-6-8 6-8-6-8 5-8-5-7Z"/>
+  <path d="M38 31c-7 12-8 30 2 45" fill="none" stroke="#66ffd08a" stroke-linecap="round" stroke-width="1.8"/>
+  <path d="M70 31c7 12 8 30-2 45" fill="none" stroke="#55f6b86a" stroke-linecap="round" stroke-width="1.8"/>
+</svg>

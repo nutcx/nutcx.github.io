@@ -1,0 +1,134 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { SITE, withBase } from "../lib/site";
+
+const effectiveDate = "September 2, 2026";
+const sections = [
+  ["agreement", "Agreement"],
+  ["license", "Permitted use"],
+  ["responsibilities", "Your responsibilities"],
+  ["files", "Files and Android access"],
+  ["third-party", "Third-party services"],
+  ["ownership", "Ownership and affiliation"],
+  ["availability", "Availability"],
+  ["disclaimers", "Disclaimers"],
+  ["liability", "Liability"],
+  ["changes", "Changes and contact"],
+];
+---
+
+<SiteLayout
+  title="Terms of Use"
+  description="Terms governing use of the NutCracker Tools Android app, website, dashboard, support material, and local resource workflows."
+  page="terms"
+>
+  <header class="page-hero">
+    <div class="page-hero__inner shell">
+      <span class="eyebrow">Terms of use</span>
+      <h1>Use the tools deliberately.</h1>
+      <p>These terms set expectations for using the NutCracker Tools Android app, website, local installer, content references, and support material.</p>
+      <div class="page-hero__meta">
+        <span class="chip chip--warm">Effective · {effectiveDate}</span>
+        <span class="chip">Version · 1.0</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="section section--flush-top">
+    <div class="legal-layout shell">
+      <nav class="legal-nav aside-card" aria-label="Terms contents">
+        <strong>On this page</strong>
+        <ul>{sections.map(([id, label]) => <li><a href={`#${id}`}>{label}</a></li>)}</ul>
+      </nav>
+
+      <article class="legal-content">
+        <div class="legal-intro">
+          <p><strong>Short version:</strong> NutCracker Tools is an independent Android companion. Review every target and resource, keep your own backups, use only content you are allowed to use, and understand that modifying another app’s local files may create compatibility, account, or terms-of-service risks.</p>
+        </div>
+
+        <section class="legal-section" id="agreement">
+          <h2>1. Agreement to these terms</h2>
+          <p>By downloading, installing, accessing, or using NutCracker Tools, this website, or related materials (together, the “Services”), you agree to these Terms of Use and our <a href={withBase("privacy/")}>Privacy Policy</a>. If you do not agree, do not use the Services.</p>
+          <p>If you use the Services for an organization or another person, you represent that you are authorized to accept these terms for them.</p>
+        </section>
+
+        <section class="legal-section" id="license">
+          <h2>2. Limited permitted use</h2>
+          <p>Subject to these terms, Kaizoku GFX grants you a limited, personal, non-exclusive, non-transferable, revocable license to use the Services for lawful purposes on devices and content you are authorized to manage.</p>
+          <p>You may not:</p>
+          <ul>
+            <li>use the Services to access, alter, distribute, or interfere with systems, accounts, devices, or content without authorization;</li>
+            <li>upload or apply malicious archives, code, or content, or use the Services to evade security, anti-cheat, access, or platform controls;</li>
+            <li>misrepresent NutCracker Tools as official software from a game publisher or platform provider;</li>
+            <li>sell, sublicense, mirror, or redistribute the Services in violation of applicable licenses or law;</li>
+            <li>abuse network endpoints, ads, content hosts, support channels, or automated interfaces.</li>
+          </ul>
+        </section>
+
+        <section class="legal-section" id="responsibilities">
+          <h2>3. Your responsibilities</h2>
+          <ul>
+            <li>Confirm the exact target package and Android folder before applying any resource.</li>
+            <li>Use only files and content you own, created, licensed, or otherwise have permission to use.</li>
+            <li>Review recognized, ignored, duplicate, and conflicting archive entries before installation.</li>
+            <li>Keep independent backups of important data and preserve official recovery options.</li>
+            <li>Follow the terms, policies, and rules of Android, your device maker, game publisher, content host, network provider, and app store.</li>
+            <li>Protect Wireless debugging pairing codes, device access, developer settings, credentials, and private files.</li>
+          </ul>
+          <p>You are responsible for deciding whether a resource or modification is appropriate for your device, account, region, app version, and applicable rules.</p>
+        </section>
+
+        <section class="legal-section" id="files">
+          <h2>4. Local files, folder grants, and Wireless ADB</h2>
+          <p>NutCracker Tools can inspect archives, request Android folder access, use legacy storage on older Android versions, and connect to Wireless ADB on your own device. These features can write, replace, restore, or remove local files in the selected target.</p>
+          <p>Transaction backups, journals, history, and restoration features reduce some risks but do not guarantee recovery. A device restart, revoked permission, full storage, incompatible app update, corrupted archive, unavailable original source, network interruption, or platform change can prevent completion or restoration.</p>
+          <div class="legal-callout">
+            <strong>Before applying</strong>
+            <p>Verify the target, archive source, resource compatibility, access route, and available storage. Do not enter Wireless debugging codes anywhere except the local Android pairing flow you initiated.</p>
+          </div>
+        </section>
+
+        <section class="legal-section" id="third-party">
+          <h2>5. Third-party content, services, ads, and links</h2>
+          <p>The Services may reference or connect to public game-content APIs, CDNs, archive/image hosts, GitHub, Google Firebase, Google Mobile Ads, UMP, Android services, and other third parties. Their content, availability, security, privacy practices, licenses, and terms are controlled by those parties.</p>
+          <p>We do not guarantee that a catalog entry, hero detail, matchup value, guide, event, patch note, skin, preparation item, archive, image, original resource, ad, or external link is accurate, current, safe, licensed for your intended use, or compatible with your app version.</p>
+          <p>Ads may be displayed after Google’s consent system permits requests. Advertising relationships do not mean we endorse each advertiser, product, or destination.</p>
+        </section>
+
+        <section class="legal-section" id="ownership">
+          <h2>6. Ownership, trademarks, and no affiliation</h2>
+          <p>NutCracker Tools, its original website design, brand mark, and original code or documentation are owned by their respective rightsholders and protected by applicable intellectual-property law.</p>
+          <p>Mobile Legends: Bang Bang, Moonton, hero names, game artwork, game resources, and related marks or content belong to their respective owners. NutCracker Tools is an independent companion and is not affiliated with, authorized by, sponsored by, or endorsed by Moonton or other game publishers unless expressly stated in writing.</p>
+          <p>Displaying a title, identifier, preview, link, or compatibility reference does not transfer ownership or grant you a license to third-party material.</p>
+        </section>
+
+        <section class="legal-section" id="availability">
+          <h2>7. Updates, availability, and suspension</h2>
+          <p>We may add, change, restrict, suspend, or discontinue any feature or content source. Android platform rules, game updates, network services, content endpoints, ad services, or third-party policies may make a feature unavailable or incompatible without notice.</p>
+          <p>We may restrict access to protect users, services, infrastructure, rightsholders, or legal compliance. You may stop using the Services at any time and uninstall the Android app.</p>
+        </section>
+
+        <section class="legal-section" id="disclaimers">
+          <h2>8. Disclaimers</h2>
+          <p>To the maximum extent permitted by law, the Services are provided “as is” and “as available,” without warranties of merchantability, fitness for a particular purpose, non-infringement, accuracy, compatibility, availability, or uninterrupted operation.</p>
+          <p>We do not promise that using the Services will preserve files, restore every original, avoid game-account action, comply with every third-party term, remove malware from user-supplied files, or produce a particular gameplay or device result.</p>
+          <p>Nothing in these terms excludes warranties or consumer rights that cannot legally be excluded.</p>
+        </section>
+
+        <section class="legal-section" id="liability">
+          <h2>9. Limitation of liability</h2>
+          <p>To the maximum extent permitted by applicable law, Kaizoku GFX and its contributors will not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost data, lost profits, lost access, account restrictions, device problems, corrupted files, or service interruption arising from or related to the Services.</p>
+          <p>Where liability cannot be excluded, it will be limited to the minimum amount permitted by law. These limitations do not apply where prohibited or to liability that cannot lawfully be limited.</p>
+        </section>
+
+        <section class="legal-section" id="changes">
+          <h2>10. Changes, severability, and contact</h2>
+          <p>We may revise these terms. Updated terms will show a new effective date and apply prospectively when posted or otherwise communicated. Continuing to use the Services after an update means you accept the revised terms where permitted by law.</p>
+          <p>If part of these terms is unenforceable, the remaining provisions continue to apply. Failure to enforce a provision is not a waiver.</p>
+          <p>Questions can be started through the <a href={withBase("support/")}>Support page</a> or the <a href={SITE.issues}>project issue tracker</a>. Do not post credentials, pairing codes, private files, or personal information in a public issue.</p>
+          <p><strong>Operator:</strong> Kaizoku GFX<br /><strong>Product:</strong> {SITE.name}<br /><strong>Effective date:</strong> {effectiveDate}</p>
+        </section>
+      </article>
+    </div>
+  </section>
+</SiteLayout>
