@@ -23,7 +23,7 @@ Start the development server:
 pnpm dev
 ```
 
-Astro serves the project under its configured base path. Open `http://localhost:4321/nutcracker-tools/` unless the terminal reports a different port.
+Astro serves the project from the site root. Open `http://localhost:4321/` unless the terminal reports a different port.
 
 ## Validation and production preview
 
@@ -49,10 +49,12 @@ The deployable files are generated in `dist/`.
 
 ## GitHub Pages deployment
 
-The site is configured for the repository `kaizokuo-gfx/nutcracker-tools` and publishes at:
+The site is configured for the account-level Pages repository `nutcx/nutcx.github.io` and publishes at:
 
-<https://kaizokuo-gfx.github.io/nutcracker-tools/>
+<https://nutcx.github.io/>
+
+The AdMob authorization file is published at <https://nutcx.github.io/app-ads.txt>.
 
 Before the first deployment, open the repository's **Settings → Pages** page and set **Source** to **GitHub Actions**. The workflow at `.github/workflows/pages.yml` builds and deploys the site whenever changes are pushed to `main`; it can also be run manually from the Actions tab.
 
-If the repository name or hosting domain changes, update both `site` and `base` in `astro.config.mjs` before deploying.
+If the repository name or hosting domain changes, update `astro.config.mjs`, `src/lib/site.ts`, `public/robots.txt`, `public/site.webmanifest`, and `scripts/validate-site.mjs` before deploying.

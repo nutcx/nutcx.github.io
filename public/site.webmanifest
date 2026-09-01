@@ -2,14 +2,14 @@
   "name": "NutCracker Tools",
   "short_name": "NutCracker",
   "description": "The official web companion for NutCracker Tools.",
-  "start_url": "/nutcracker-tools/",
-  "scope": "/nutcracker-tools/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#17110f",
   "theme_color": "#17110f",
   "icons": [
     {
-      "src": "/nutcracker-tools/favicon.svg",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

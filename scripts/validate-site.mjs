@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 
 const root = process.cwd();
 const dist = join(root, "dist");
-const base = "/nutcracker-tools/";
+const base = "/";
 const errors = [];
 
 function walk(directory) {
@@ -29,6 +29,7 @@ function expectFile(path) {
   "brand-mark.svg",
   "site.webmanifest",
   "robots.txt",
+  "app-ads.txt",
 ].forEach(expectFile);
 
 if (existsSync(dist)) {
@@ -63,6 +64,10 @@ if (existsSync(dist)) {
   ["Firebase", "Google Mobile Ads", "Wireless ADB", "GitHub Pages", "September 2, 2026"].forEach((term) => {
     if (!privacy.includes(term)) errors.push(`Privacy policy is missing required disclosure: ${term}`);
   });
+
+  const appAds = readFileSync(join(dist, "app-ads.txt"), "utf8").trim();
+  const expectedAppAds = "google.com, pub-4163787779715408, DIRECT, f08c47fec0942fa0";
+  if (appAds !== expectedAppAds) errors.push("app-ads.txt does not contain the expected AdMob seller declaration");
 }
 
 if (errors.length) {

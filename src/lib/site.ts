@@ -1,15 +1,16 @@
 export const SITE = {
   name: "NutCracker Tools",
   shortName: "NutCracker",
+  operator: "Nutcx",
   description:
     "A focused Android companion for hero guides, matchup insight, resource previews, preparation items, and safer local installs.",
   packageName: "com.nutcx.tools",
   version: "1.0.0",
-  repository: "https://github.com/kaizokuo-gfx/nutcracker-tools",
-  issues: "https://github.com/kaizokuo-gfx/nutcracker-tools/issues",
-  releases: "https://github.com/kaizokuo-gfx/nutcracker-tools/releases",
-  pagesOrigin: "https://kaizokuo-gfx.github.io",
-  pagesPath: "/nutcracker-tools",
+  repository: "https://github.com/nutcx/nutcx.github.io",
+  issues: "https://github.com/nutcx/nutcx.github.io/issues",
+  releases: "https://github.com/nutcx/nutcx.github.io/releases",
+  pagesOrigin: "https://nutcx.github.io",
+  pagesPath: "",
 } as const;
 
 export type PageKey = "home" | "dashboard" | "support" | "privacy" | "terms";
