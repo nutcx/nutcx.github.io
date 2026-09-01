@@ -61,7 +61,7 @@ if (existsSync(dist)) {
   }
 
   const privacy = readFileSync(join(dist, "privacy/index.html"), "utf8");
-  ["Firebase", "Google Mobile Ads", "Wireless ADB", "GitHub Pages", "September 2, 2026"].forEach((term) => {
+  ["Firebase", "Google Mobile Ads", "Third-party services", "GitHub Pages", "September 2, 2026"].forEach((term) => {
     if (!privacy.includes(term)) errors.push(`Privacy policy is missing required disclosure: ${term}`);
   });
 
