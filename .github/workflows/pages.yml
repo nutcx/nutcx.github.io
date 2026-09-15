@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,6 +29,9 @@ jobs:
           path: .
           node-version: 24
           package-manager: pnpm@11.19.0
+
+      - name: Validate item previews and association
+        run: pnpm validate && node scripts/test-item-links.mjs
 
   deploy:
     needs: build

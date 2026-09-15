@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nutcx.tools",
+      "sha256_cert_fingerprints": ["E5:C4:EC:B0:B8:B5:A0:3F:52:70:50:3C:0A:0E:CD:28:E2:2C:8A:36:DD:0F:08:AC:36:04:FF:38:AD:2F:2E:A3"]
+    }
+  }
+]

@@ -14,7 +14,7 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "validate": "node scripts/validate-site.mjs",
-    "test": "pnpm build && pnpm validate"
+    "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs"
   },
   "dependencies": {
     "astro": "7.2.10"

@@ -5,6 +5,7 @@ import { SITE, canonicalUrl, type PageKey, withBase } from "../lib/site";
 import "../styles/global.css";
 
 interface Props {
+  socialImage?: string;
   title?: string;
   description?: string;
   page?: PageKey;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const {
+  socialImage = canonicalUrl("social-card.svg"),
   title = SITE.name,
   description = SITE.description,
   page = "home",
@@ -40,11 +42,11 @@ const canonical = canonicalUrl(Astro.url.pathname.replace(import.meta.env.BASE_U
     <meta property="og:title" content={documentTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={canonicalUrl("social-card.svg")} />
+    <meta property="og:image" content={socialImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={documentTitle} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={canonicalUrl("social-card.svg")} />
+    <meta name="twitter:image" content={socialImage} />
     <title>{documentTitle}</title>
     <script is:inline>
       (() => {

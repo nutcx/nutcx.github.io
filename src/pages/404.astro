@@ -9,8 +9,8 @@ import { withBase } from "../lib/site";
     <div class="shell">
       <img class="not-found__mark" src={withBase("brand-mark.svg")} alt="" width="92" height="92" />
       <span class="eyebrow" style="margin-top: 28px">Error 404</span>
-      <h1>This one slipped through the crack.</h1>
-      <p>The page may have moved, the address may be incomplete, or the resource is no longer part of this site.</p>
+      <h1 data-missing-title>This one slipped through the crack.</h1>
+      <p data-missing-description>The page may have moved, the address may be incomplete, or the resource is no longer part of this site.</p>
       <div class="hero__actions">
         <a class="button button--primary" href={withBase()}>Back home <Icon name="arrow" size={17} /></a>
         <a class="button button--secondary" href={withBase("support/")}>Open support</a>
@@ -18,3 +18,12 @@ import { withBase } from "../lib/site";
     </div>
   </section>
 </SiteLayout>
+
+<script>
+  if (/^\/items\/[a-f0-9]{64}\/?$/.test(location.pathname)) {
+    const title = document.querySelector('[data-missing-title]');
+    const description = document.querySelector('[data-missing-description]');
+    if (title) title.textContent = 'This item is unavailable.';
+    if (description) description.textContent = 'It may have been removed, or its preview has not been published yet. Try opening the link again after the next content update.';
+  }
+</script>
