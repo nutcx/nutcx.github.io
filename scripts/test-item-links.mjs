@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodeBundle, projectItems, skinPath } from '../src/lib/catalog.mjs';
+import { decodeBundle, projectItems, skinPath, skinFilter } from '../src/lib/catalog.mjs';
 
 const skin = { skinId: 1011, category: 0, name: 'Moonlight Archer', landscape: 'https://example.com/miya.webp', source: { backupArchive: 'https://example.com/miya.zip', upgrades: [] } };
 const prep = { preparationId: 1, name: 'Recall', image: 'https://example.com/recall.webp', archive: 'https://example.com/recall.zip', items: [
@@ -34,3 +34,14 @@ const tampered = Buffer.from(signed); tampered[100] ^= 1;
 assert.throws(() => decodeBundle(tampered), /signature verification failed/);
 assert.throws(() => decodeBundle(signed.subarray(0, signed.length - 1)), /Invalid signature block/);
 console.log('Item checks passed: cross-platform IDs, reorder and rename stability, preview metadata, asset association, signed content and tamper rejection.');
+
+assert.equal(skinFilter({ category: 0, type: 'Anime' }), 'official');
+assert.equal(skinFilter({ category: 1, type: ' | Anime | Naruto' }), 'anime');
+assert.equal(skinFilter({ category: 1, type: 'Custom | Anime' }), 'custom');
+assert.equal(skinFilter({ category: 1 }), 'custom');
+const roster = readFileSync('dist/heroes/index.html', 'utf8');
+assert.ok(roster.includes('Miya') && roster.includes('href="/heroes/1/"'));
+const heroPage = readFileSync('dist/heroes/1/index.html', 'utf8');
+assert.ok(heroPage.includes('data-catalog-filter="anime"') && heroPage.includes('href="/heroes/1/1011/"'));
+assert.ok(readFileSync('dist/preparations/index.html', 'utf8').includes('data-catalog-group'));
+console.log('Catalog checks passed: classifications, hero names, browse routes and item navigation.');

@@ -9,9 +9,10 @@ interface Props {
 const { active = "home" } = Astro.props;
 const navigation: Array<{ label: string; href: string; key: PageKey }> = [
   { label: "Home", href: "", key: "home" },
+  { label: "Heroes", href: "heroes/", key: "heroes" },
+  { label: "Preparations", href: "preparations/", key: "preparations" },
   { label: "Dashboard", href: "dashboard/", key: "dashboard" },
   { label: "Support", href: "support/", key: "support" },
-  { label: "Privacy", href: "privacy/", key: "privacy" },
 ];
 ---
 

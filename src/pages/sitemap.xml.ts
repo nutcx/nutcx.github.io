@@ -1,9 +1,13 @@
 import type { APIRoute } from "astro";
 import { canonicalUrl } from "../lib/site";
 
-const routes = ["", "dashboard/", "support/", "privacy/", "terms/"];
+import { loadHeroes, loadItems } from "../lib/catalog.mjs";
 
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async () => {
+  const heroes = await loadHeroes();
+  const items = await loadItems();
+  const routes = ["", "dashboard/", "support/", "privacy/", "terms/", "heroes/", "preparations/",
+    ...heroes.map(hero => `heroes/${hero.id}/`), ...items.map(item => item.path)];
   const entries = routes
     .map((route) => `  <url><loc>${canonicalUrl(route)}</loc></url>`)
     .join("\n");

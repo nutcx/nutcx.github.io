@@ -1,0 +1,32 @@
+---
+import type { SharedItem } from '../lib/catalog.mjs';
+import { canonicalUrl } from '../lib/site';
+interface Props { items: SharedItem[]; preparation?: boolean; }
+const { items, preparation = false } = Astro.props;
+const filters = preparation ? ['all', 'original', 'replacement'] : ['all', 'original', 'official', 'custom', 'anime'];
+const groups = [...new Set(items.map(item => item.group).filter(Boolean))].sort();
+---
+<section data-catalog>
+  <div class="catalog-controls">
+    <label>Search {preparation ? 'preparations' : 'skins'}<input type="search" placeholder="Search by name…" data-catalog-search /></label>
+    {preparation && <label>Category<select data-catalog-group><option value="">All categories</option>{groups.map(group => <option value={group}>{group}</option>)}</select></label>}
+  </div>
+  <div class="catalog-filters" role="group" aria-label="Content type">
+    {filters.map(filter => <button type="button" data-catalog-filter={filter} aria-pressed={filter === 'all'}>{filter[0].toUpperCase() + filter.slice(1)}</button>)}
+  </div>
+  <p class="catalog-count" role="status" aria-live="polite" data-catalog-count>{items.length} items</p>
+  <div class="catalog-grid">
+    {items.map(item => <article class="catalog-card" data-catalog-card data-search={`${item.name} ${item.description}`} data-filter={item.filter} data-group={item.group || ''}>
+      <a class="catalog-card__preview" href={item.path}>
+        <div class="catalog-card__art">{item.image ? <img src={item.image} alt="" width="480" height="300" loading="lazy" decoding="async" /> : <span>Preview unavailable</span>}</div>
+        <div class="catalog-card__body"><small class="catalog-tag">{item.filter}</small><h2>{item.name}</h2><p>{item.description}</p></div>
+      </a>
+      <div class="catalog-card__actions">
+        <a href={`intent://nutcx.github.io${item.path}#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=com.nutcx.tools')};end`}>Open in app</a>
+        <button type="button" data-catalog-share={canonicalUrl(item.path)} data-title={item.name} aria-label={`Share ${item.name}`}>Share ↗</button>
+      </div>
+    </article>)}
+  </div>
+  <div class="catalog-empty" data-catalog-empty hidden><h2>No matching items</h2><p>Try another name or change your filters.</p><button class="button button--secondary" data-catalog-reset>Clear filters</button></div>
+</section>
+<script>import '../scripts/catalog';</script>

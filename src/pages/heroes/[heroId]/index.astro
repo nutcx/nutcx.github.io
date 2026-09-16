@@ -1,0 +1,18 @@
+---
+import SiteLayout from '../../../layouts/SiteLayout.astro';
+import CatalogItems from '../../../components/CatalogItems.astro';
+import { loadHeroes } from '../../../lib/catalog.mjs';
+import '../../../styles/catalog.css';
+export async function getStaticPaths() { return (await loadHeroes()).map(hero => ({ params: { heroId: String(hero.id) }, props: { hero } })); }
+const { hero } = Astro.props;
+---
+<SiteLayout title={`${hero.name} skins`} description={`Browse ${hero.name}'s available original, official, custom and anime skins. Preview, share, or open an item in NutCracker Tools.`} page="heroes" socialImage={hero.image || undefined}>
+  <div class="catalog-shell">
+    <a class="catalog-back" href="/heroes/">← All heroes</a>
+    <header class="catalog-heading hero-heading">
+      {hero.image && <img src={hero.image} alt="" width="88" height="88" />}
+      <div><p class="eyebrow">Hero #{hero.id}</p><h1>{hero.name}</h1><p>{hero.items.length} skin options. Choose a preview to see more.</p></div>
+    </header>
+    <CatalogItems items={hero.items} />
+  </div>
+</SiteLayout>

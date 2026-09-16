@@ -10,7 +10,7 @@ const appLink = `intent://nutcx.github.io${item.path}#Intent;scheme=https;packag
 ---
 <SiteLayout canonicalPath={item.path} title={item.name} description={`${item.description}. View ${item.name} in NutCracker Tools.`} socialImage={item.image || undefined}>
   <article class="item-preview">
-    <a class="item-back" href="/">← NutCracker Tools</a>
+    <a class="item-back" href={item.kind === "skin" ? `/heroes/${item.heroId}/` : "/preparations/"}>← {item.kind === "skin" ? "Back to hero skins" : "Back to preparations"}</a>
     <div class="item-grid">
       <div class="item-art">
         {item.image ? <img src={item.image} alt={item.name} width="960" height="720" /> : <span>Preview image unavailable</span>}

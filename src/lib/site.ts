@@ -13,7 +13,7 @@ export const SITE = {
   pagesPath: "",
 } as const;
 
-export type PageKey = "home" | "dashboard" | "support" | "privacy" | "terms";
+export type PageKey = "heroes" | "preparations" | "home" | "dashboard" | "support" | "privacy" | "terms";
 
 export function withBase(path = ""): string {
   const base = import.meta.env.BASE_URL.endsWith("/")

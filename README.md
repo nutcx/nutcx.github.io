@@ -89,3 +89,17 @@ permanent preparation-item IDs can remove this content-identity limitation.
 Run `node scripts/test-item-links.mjs` after building to check shared IDs, metadata,
 website association and signed-bundle tamper rejection. App-side URL tests are in
 Fuego-GFX's `ItemLinksTest`.
+
+## Browse catalog
+
+`/heroes/` provides hero search, and `/heroes/<heroId>/` lists skin previews with
+Original, Official, Custom and Anime filters matching the app classification.
+`/preparations/` supports search, category selection and original/replacement filters.
+Cards link to previews and offer Open in app and Share actions. Browsing links work
+without JavaScript; filtering and sharing are progressive enhancements.
+
+Catalog items come from the same verified bundle as shared previews. Hero names
+and icons are a metadata snapshot in `src/data/heroes.json`, exported from the
+app's hero index on September 16, 2026. Update that file when hero metadata changes,
+keeping only the hero ID, name and HTTPS image URL. Unknown IDs display as
+`Hero <id>` until their labels are added; only heroes present in the bundle appear.

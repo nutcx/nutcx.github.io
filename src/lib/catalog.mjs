@@ -1,3 +1,4 @@
+import heroLabels from '../data/heroes.json' with { type: 'json' };
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 
@@ -46,30 +47,30 @@ export function skinPath(hero, source, sourceCategory, target, targetCategory) {
 
 export function projectItems(entries) {
   const items = new Map();
-  const add = (identity, name, image, description, archive, route) => {
+  const add = (identity, name, image, description, archive, route, metadata = {}) => {
     if (!name?.trim() || !https(archive)) return;
     const id = hash(identity);
     const path = route ?? `/preparations/${identity.split(':')[2]}/${id.slice(0, 8)}/`;
-    const item = { id, path, name: name.trim(), image: https(image), description };
+    const item = { id, path, name: name.trim(), image: https(image), description, ...metadata };
     if (items.has(id)) requireValue(JSON.stringify(items.get(id)) === JSON.stringify(item), 'Conflicting shared item identity');
     items.set(id, item);
   };
   for (const hero of entries['heroes.json'].heroes) {
     for (const skin of hero.skins) {
       if (!skin.source) continue;
-      add(`skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', skin.source.backupArchive, skinPath(hero.heroId, skin.skinId, skin.category));
+      add(`skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', skin.source.backupArchive, skinPath(hero.heroId, skin.skinId, skin.category), { kind: 'skin', heroId: hero.heroId, filter: 'original' });
       for (const upgrade of skin.source.upgrades) {
         const target = hero.skins.find(s => s.skinId === upgrade.targetSkinId && s.category === upgrade.targetCategory);
         requireValue(target, 'Missing skin target');
-        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive, skinPath(hero.heroId, skin.skinId, skin.category, target.skinId, target.category));
+        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive, skinPath(hero.heroId, skin.skinId, skin.category, target.skinId, target.category), { kind: 'skin', heroId: hero.heroId, filter: skinFilter(target) });
       }
     }
   }
   for (const prep of entries['preparations.json'].preparations) {
     // The Android catalog only exposes replacements with an available parent.
     if (!https(prep.archive)) continue;
-    add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive);
-    for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive);
+    add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'original' });
+    for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'replacement' });
   }
   const paths = new Set();
   for (const item of items.values()) {
@@ -91,4 +92,22 @@ export async function loadItems() {
     return projectItems(decodeBundle(Buffer.concat(chunks)));
   })();
   return cached;
+}
+
+export function skinFilter(skin) {
+  if (skin.category === 0) return 'official';
+  return String(skin.type || '').split('|').map(part => part.trim()).filter(Boolean)[0]?.toLowerCase() === 'anime' ? 'anime' : 'custom';
+}
+
+export async function loadHeroes() {
+  const grouped = new Map();
+  for (const item of await loadItems()) {
+    if (item.kind !== 'skin') continue;
+    if (!grouped.has(item.heroId)) {
+      const label = heroLabels[item.heroId];
+      grouped.set(item.heroId, { id: item.heroId, name: label?.name || `Hero ${item.heroId}`, image: https(label?.image), items: [] });
+    }
+    grouped.get(item.heroId).items.push(item);
+  }
+  return [...grouped.values()].sort((a, b) => a.name.localeCompare(b.name, 'en'));
 }

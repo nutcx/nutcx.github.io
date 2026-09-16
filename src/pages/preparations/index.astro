@@ -1,0 +1,13 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import CatalogItems from '../../components/CatalogItems.astro';
+import { loadItems } from '../../lib/catalog.mjs';
+import '../../styles/catalog.css';
+const items = (await loadItems()).filter(item => item.kind === 'preparation');
+---
+<SiteLayout title="Preparations" description="Browse preparation previews, find your next pick, and open it in NutCracker Tools." page="preparations">
+  <div class="catalog-shell">
+    <header class="catalog-heading"><p class="eyebrow">Content library</p><h1>Preparations.</h1><p>Find an original or replacement and preview it before opening the app.</p><a href="/heroes/">Browse heroes →</a></header>
+    <CatalogItems items={items} preparation />
+  </div>
+</SiteLayout>
