@@ -1,12 +1,26 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { canonicalUrl } from '../lib/site';
-import type { SharedItem } from '../lib/catalog.mjs';
+import { loadHeroes, type SharedItem } from '../lib/catalog.mjs';
 interface Props { item: SharedItem; }
 const { item } = Astro.props;
 const link = canonicalUrl(item.path);
 const store = 'https://play.google.com/store/apps/details?id=com.nutcx.tools';
 const appLink = `intent://nutcx.github.io${item.path}#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent(store)};end`;
+const hero = item.kind === 'skin' ? (await loadHeroes()).find(hero => hero.id === item.heroId) : undefined;
+// A skin can have several source-specific previews. Recommend each destination once.
+const tokens = (path: string) => path.match(/\/heroes\/\d+\/(\d+(?:c-?\d+)?)(?:-(\d+(?:c-?\d+)?))?\/$/);
+const current = tokens(item.path);
+const seen = new Set([current?.[2] || current?.[1]]);
+const related = [...(hero?.items || [])]
+  .sort((a, b) => Number(tokens(b.path)?.[1] === current?.[1]) - Number(tokens(a.path)?.[1] === current?.[1]))
+  .filter(candidate => {
+    const parts = tokens(candidate.path);
+    const skin = parts?.[2] || parts?.[1];
+    if (!skin || seen.has(skin)) return false;
+    seen.add(skin);
+    return true;
+  }).slice(0, 4);
 ---
 <SiteLayout canonicalPath={item.path} title={item.name} description={`${item.description}. View ${item.name} in NutCracker Tools.`} socialImage={item.image || undefined}>
   <article class="item-preview">
@@ -27,10 +41,27 @@ const appLink = `intent://nutcx.github.io${item.path}#Intent;scheme=https;packag
         <p class="item-note">Open this item in the Android app to see its available options. If you just installed the app, return to this page and tap Open in NutCracker.</p>
       </div>
     </div>
+    {hero && related.length > 0 && <section class="related-skins" aria-labelledby="related-heading">
+      <div class="related-header">
+        <h2 id="related-heading">More from {hero.name}</h2>
+        <a href={`/heroes/${hero.id}/`}>View all {hero.name} skins →</a>
+      </div>
+      <div class="related-grid">
+        {related.map(skin => <a class="related-card" href={skin.path}>
+          <div class="related-art">{skin.image ? <img src={skin.image} alt="" width="480" height="300" loading="lazy" decoding="async" /> : <span>Preview unavailable</span>}</div>
+          <div class="related-copy"><h3>{skin.name}</h3><p>{skin.description}</p><span>View preview →</span></div>
+        </a>)}
+      </div>
+    </section>}
   </article>
 </SiteLayout>
 <style>
   .item-preview{max-width:1160px;margin:auto;padding:40px 24px 80px}.item-back{display:inline-block;margin-bottom:28px;color:var(--text-muted)}
   .item-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}.item-art{border-radius:24px;overflow:hidden;background:#231c19;min-height:280px;display:grid;place-items:center}.item-art img{width:100%;height:auto;max-height:580px;object-fit:contain}.item-copy h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.08;overflow-wrap:anywhere;margin:12px 0 24px}.item-actions{display:flex;flex-wrap:wrap;gap:12px;margin:28px 0}.item-note{font-size:.9rem;line-height:1.7;opacity:.7}.item-copy>p{line-height:1.7}
   @media(max-width:720px){.item-grid{grid-template-columns:1fr;gap:24px}.item-preview{padding-top:24px}.item-art{min-height:200px}.item-actions{flex-direction:column}}
+  .related-skins{margin-top:64px;padding-top:32px;border-top:1px solid var(--outline-soft)}
+  .related-header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:24px}.related-header h2{font-size:1.5rem}.related-header a,.related-copy>span{color:var(--primary-bright)}
+  .related-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}.related-card{color:var(--text);border:1px solid var(--outline-soft);border-radius:20px;overflow:hidden;background:var(--surface-low)}.related-card:hover{border-color:var(--primary)}
+  .related-art{aspect-ratio:8/5;background:var(--surface);display:grid;place-items:center;color:var(--text-muted)}.related-art img{width:100%;height:100%;object-fit:cover}.related-copy{padding:16px}.related-copy h3{font-size:1.05rem;line-height:1.4}.related-copy p{color:var(--text-muted);font-size:.85rem;line-height:1.6;margin:8px 0 16px}.related-copy>span{font-size:.85rem}
+  @media(max-width:900px){.related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:400px){.related-grid{grid-template-columns:1fr}}
 </style>
