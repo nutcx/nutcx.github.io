@@ -3,6 +3,12 @@ import SiteLayout from "../layouts/SiteLayout.astro";
 import Icon from "../components/Icon.astro";
 import { dashboardTools, NUTCRACKER_ANDROID_PACKAGE } from "../data/tools";
 import { SITE, withBase } from "../lib/site";
+import { loadHeroes } from "../lib/catalog.mjs";
+
+const heroes = await loadHeroes();
+const featuredHeroes = [1, 7, 17, 25, 56, 53]
+  .flatMap(id => heroes.filter(hero => hero.id === id));
+const playStore = `https://play.google.com/store/apps/details?id=${NUTCRACKER_ANDROID_PACKAGE}`;
 
 const workflow = [
   {
@@ -32,13 +38,14 @@ const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#li
           Explore heroes, understand matchups, preview resources, and manage local installs from one calm, focused companion.
         </p>
         <div class="hero__actions">
-          <a class="button button--primary" href={withBase("dashboard/")}>
-            Explore the dashboard <Icon name="arrow" size={18} />
+          <a class="button button--primary" href={withBase("heroes/")}>
+            Browse skins <Icon name="arrow" size={18} />
           </a>
-          <a class="button button--secondary" href={SITE.releases}>
-            <Icon name="download" size={18} /> Download for Android
+          <a class="button button--secondary" href={withBase("preparations/")}>
+            Browse preparations <Icon name="arrow" size={18} />
           </a>
         </div>
+        <a class="home-app-link" href={playStore}><Icon name="download" size={18} /> Get the Android app on Google Play</a>
         <div class="hero__trust" aria-label="Product principles">
           <span class="trust-item"><Icon name="check" size={16} /> Android 8.0+</span>
           <span class="trust-item"><Icon name="check" size={16} /> Local-first file workflow</span>
@@ -86,6 +93,22 @@ const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#li
       </div>
     </div>
   </section>
+
+  {featuredHeroes.length > 0 && <section class="section section--compact" aria-labelledby="browse-heroes-heading">
+    <div class="shell">
+      <div class="home-catalog-heading">
+        <div><span class="eyebrow">Explore the catalog</span><h2 id="browse-heroes-heading">Start with a hero.</h2><p>Browse skin previews and share your favorites. No app needed to explore.</p></div>
+        <a class="button button--secondary" href={withBase("heroes/")}>View all heroes <Icon name="arrow" size={18} /></a>
+      </div>
+      <div class="home-heroes">
+        {featuredHeroes.map(hero => <a class="home-hero" href={withBase(`heroes/${hero.id}/`)}>
+          {hero.image && <img src={hero.image} alt="" width="80" height="80" loading="lazy" decoding="async" />}
+          <h3>{hero.name}</h3><span>Browse skins →</span>
+        </a>)}
+      </div>
+      <p class="home-preparations">Looking for more? <a href={withBase("preparations/")}>Explore preparations →</a></p>
+    </div>
+  </section>}
 
   <section class="proof-strip" aria-label="NutCracker Tools at a glance">
     <div class="proof-strip__inner shell">
@@ -176,3 +199,10 @@ const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#li
     url: `${SITE.pagesOrigin}${SITE.pagesPath}/`,
   })}></script>
 </SiteLayout>
+
+<style>
+  .home-app-link{display:inline-flex;align-items:center;gap:8px;margin-top:20px;color:var(--primary-bright);line-height:1.5}
+  .home-catalog-heading{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:28px}.home-catalog-heading h2{font-size:clamp(1.8rem,4vw,2.8rem);margin:12px 0}.home-catalog-heading p,.home-preparations{color:var(--text-muted);line-height:1.7}
+  .home-heroes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}.home-hero{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:24px 12px;border:1px solid var(--outline-soft);border-radius:20px;background:var(--surface-low);color:var(--text)}.home-hero:hover{border-color:var(--primary)}.home-hero img{border-radius:50%;object-fit:cover}.home-hero h3{font-size:1.1rem}.home-hero span,.home-preparations a{color:var(--primary-bright)}.home-hero span{font-size:.85rem}.home-preparations{margin-top:24px}
+  @media(max-width:900px){.home-heroes{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:500px){.home-heroes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
