@@ -20,7 +20,7 @@ import { withBase } from "../lib/site";
 </SiteLayout>
 
 <script>
-  if (/^\/items\/[a-f0-9]{64}\/?$/.test(location.pathname)) {
+  if (/^\/(?:items\/[a-f0-9]{64}|heroes\/[1-9][0-9]*\/[0-9]+(?:c-?[0-9]+)?(?:-[0-9]+(?:c-?[0-9]+)?)?|preparations\/[0-9]+\/[a-f0-9]{8})\/?$/.test(location.pathname)) {
     const title = document.querySelector('[data-missing-title]');
     const description = document.querySelector('[data-missing-description]');
     if (title) title.textContent = 'This item is unavailable.';

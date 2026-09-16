@@ -39,23 +39,29 @@ function https(value) {
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : ''; } catch { return ''; }
 }
 
+export function skinPath(hero, source, sourceCategory, target, targetCategory) {
+  const token = (id, category) => `${id}${category === 0 ? '' : `c${category}`}`;
+  return `/heroes/${hero}/${token(source, sourceCategory)}${target === undefined ? '' : `-${token(target, targetCategory)}`}/`;
+}
+
 export function projectItems(entries) {
   const items = new Map();
-  const add = (identity, name, image, description, archive) => {
+  const add = (identity, name, image, description, archive, route) => {
     if (!name?.trim() || !https(archive)) return;
     const id = hash(identity);
-    const item = { id, name: name.trim(), image: https(image), description };
+    const path = route ?? `/preparations/${identity.split(':')[2]}/${id.slice(0, 8)}/`;
+    const item = { id, path, name: name.trim(), image: https(image), description };
     if (items.has(id)) requireValue(JSON.stringify(items.get(id)) === JSON.stringify(item), 'Conflicting shared item identity');
     items.set(id, item);
   };
   for (const hero of entries['heroes.json'].heroes) {
     for (const skin of hero.skins) {
       if (!skin.source) continue;
-      add(`skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', skin.source.backupArchive);
+      add(`skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', skin.source.backupArchive, skinPath(hero.heroId, skin.skinId, skin.category));
       for (const upgrade of skin.source.upgrades) {
         const target = hero.skins.find(s => s.skinId === upgrade.targetSkinId && s.category === upgrade.targetCategory);
         requireValue(target, 'Missing skin target');
-        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive);
+        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive, skinPath(hero.heroId, skin.skinId, skin.category, target.skinId, target.category));
       }
     }
   }
@@ -64,6 +70,11 @@ export function projectItems(entries) {
     if (!https(prep.archive)) continue;
     add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive);
     for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive);
+  }
+  const paths = new Set();
+  for (const item of items.values()) {
+    requireValue(!paths.has(item.path), `Item route collision: ${item.path}`);
+    paths.add(item.path);
   }
   return [...items.values()];
 }

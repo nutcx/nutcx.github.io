@@ -1,0 +1,9 @@
+---
+import ItemPreview from '../components/ItemPreview.astro';
+import { loadItems } from '../lib/catalog.mjs';
+export async function getStaticPaths() {
+  return (await loadItems()).map(item => ({ params: { itemPath: item.path.slice(1, -1) }, props: { item } }));
+}
+const { item } = Astro.props;
+---
+<ItemPreview item={item} />

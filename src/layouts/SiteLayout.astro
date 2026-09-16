@@ -5,6 +5,7 @@ import { SITE, canonicalUrl, type PageKey, withBase } from "../lib/site";
 import "../styles/global.css";
 
 interface Props {
+  canonicalPath?: string;
   socialImage?: string;
   title?: string;
   description?: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 const {
+  canonicalPath,
   socialImage = canonicalUrl("social-card.svg"),
   title = SITE.name,
   description = SITE.description,
@@ -22,7 +24,7 @@ const {
   bodyClass = "",
 } = Astro.props;
 const documentTitle = title === SITE.name ? title : `${title} · ${SITE.name}`;
-const canonical = canonicalUrl(Astro.url.pathname.replace(import.meta.env.BASE_URL, ""));
+const canonical = canonicalUrl(canonicalPath ?? Astro.url.pathname.replace(import.meta.env.BASE_URL, ""));
 ---
 
 <!doctype html>

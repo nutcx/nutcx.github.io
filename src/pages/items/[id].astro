@@ -1,38 +1,9 @@
 ---
-import SiteLayout from '../../layouts/SiteLayout.astro';
+import ItemPreview from '../../components/ItemPreview.astro';
 import { loadItems } from '../../lib/catalog.mjs';
-import { canonicalUrl } from '../../lib/site';
 export async function getStaticPaths() {
   return (await loadItems()).map(item => ({ params: { id: item.id }, props: { item } }));
 }
 const { item } = Astro.props;
-const link = canonicalUrl(`items/${item.id}/`);
-const store = 'https://play.google.com/store/apps/details?id=com.nutcx.tools';
-const appLink = `intent://nutcx.github.io/items/${item.id}/#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent(store)};end`;
 ---
-<SiteLayout title={item.name} description={`${item.description}. View ${item.name} in NutCracker Tools.`} socialImage={item.image || undefined}>
-  <article class="item-preview">
-    <a class="item-back" href="/">← NutCracker Tools</a>
-    <div class="item-grid">
-      <div class="item-art">
-        {item.image ? <img src={item.image} alt={item.name} width="960" height="720" /> : <span>Preview image unavailable</span>}
-      </div>
-      <div class="item-copy">
-        <p class="eyebrow">Shared with you</p>
-        <h1>{item.name}</h1>
-        <p>{item.description}</p>
-        <div class="item-actions">
-          <a class="button button--primary" href={appLink}>Open in NutCracker</a>
-          <a class="button button--secondary" href={store}>Get the Android app</a>
-          <button class="button button--secondary" data-copy={link} data-copy-message="Item link copied">Copy link</button>
-        </div>
-        <p class="item-note">Open this item in the Android app to see its available options. If you just installed the app, return to this page and tap Open in NutCracker.</p>
-      </div>
-    </div>
-  </article>
-</SiteLayout>
-<style>
-  .item-preview{max-width:1160px;margin:auto;padding:40px 24px 80px}.item-back{display:inline-block;margin-bottom:28px;color:var(--text-muted)}
-  .item-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}.item-art{border-radius:24px;overflow:hidden;background:#231c19;min-height:280px;display:grid;place-items:center}.item-art img{width:100%;height:auto;max-height:580px;object-fit:contain}.item-copy h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.08;overflow-wrap:anywhere;margin:12px 0 24px}.item-actions{display:flex;flex-wrap:wrap;gap:12px;margin:28px 0}.item-note{font-size:.9rem;line-height:1.7;opacity:.7}.item-copy>p{line-height:1.7}
-  @media(max-width:720px){.item-grid{grid-template-columns:1fr;gap:24px}.item-preview{padding-top:24px}.item-art{min-height:200px}.item-actions{flex-direction:column}}
-</style>
+<ItemPreview item={item} />

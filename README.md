@@ -61,7 +61,11 @@ If the repository name or hosting domain changes, update `astro.config.mjs`, `sr
 
 ## Shared item previews
 
-`/items/<sha256>/` pages are generated at build time from the current public signed
+Skin previews use `/heroes/<heroId>/<sourceSkinId>-<targetSkinId>/` (for example,
+`/heroes/1/1011-1013/`). Original skins use `/heroes/1/1011/`. Nonzero source or target
+categories append `c<category>` to that skin ID to avoid collisions. Preparation
+previews use `/preparations/<parentId>/<8-character-id>/`. The old `/items/<sha256>/`
+pages remain available and declare the new URL as canonical. Pages are generated at build time from the current public signed
 `nutcx/app-content` bundle. The build verifies the pinned Ed25519 publisher and
 entry checksums before generating HTML. The pages publish preview metadata only;
 archive download URLs and editable source JSON are not emitted.
