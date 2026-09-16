@@ -1,9 +1,10 @@
 ---
 import ItemPreview from '../../components/ItemPreview.astro';
-import { loadItems } from '../../lib/catalog.mjs';
+import RetirementNotice from '../../components/RetirementNotice.astro';
+import { loadPreviewHistory } from '../../lib/retirements.mjs';
 export async function getStaticPaths() {
-  return (await loadItems()).map(item => ({ params: { id: item.id }, props: { item } }));
+  return (await loadPreviewHistory()).previews.map(item => ({ params: { id: item.id }, props: { item } }));
 }
 const { item } = Astro.props;
 ---
-<ItemPreview item={item} />
+{'retired' in item ? <RetirementNotice item={item} /> : <ItemPreview item={item} />}

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { mergeHistory } from '../src/lib/retirements.mjs';
+const old = { id: 'a'.repeat(64), path: '/heroes/1/1011/', name: 'Old' };
+const replacement = { id: 'b'.repeat(64), path: '/heroes/1/1012/', name: 'Replacement' };
+const notice = { id: old.id, reason: 'Replaced with an updated preview.', replacement: replacement.path };
+const removed = mergeHistory([replacement], [old], [notice]);
+assert.equal(removed.retired[0].replacement, replacement.path);
+assert.equal(removed.retired[0].reason, notice.reason);
+assert.equal(mergeHistory([old, replacement], removed.history, [notice]).retired.length, 0, 'Restored content becomes active again');
+assert.equal(mergeHistory([], removed.history, []).retired.length, 2, 'History survives successive removals');
+assert.throws(() => mergeHistory([], [old], [notice]), /Invalid retirement/);
+assert.throws(() => mergeHistory([], [{ ...old, path: '/../../bad/' }], []), /Invalid retained/);
+console.log('Retirement checks passed: retained routes, reasons, replacement validation, restoration and path validation.');

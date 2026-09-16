@@ -90,7 +90,34 @@ Run `node scripts/test-item-links.mjs` after building to check shared IDs, metad
 website association and signed-bundle tamper rejection. App-side URL tests are in
 Fuego-GFX's `ItemLinksTest`.
 
-## Browse catalog
+## Retired content
+
+Every build writes `catalog-history.json` with public item IDs, paths and names.
+The next build reads the last deployed history and retains preview routes for
+removed items, including legacy `/items/<id>/` links. Those pages explain that the
+item is no longer available and link back to the catalog. Active content always
+takes precedence, including when an earlier catalog is republished as a new version.
+
+For a specific reason or replacement, add an entry to `src/data/retirements.json`:
+
+```json
+[{ "id": "<full 64-character item ID>", "reason": "Replaced by an updated item.", "replacement": "/heroes/1/1011/" }]
+```
+
+The replacement is optional and must identify a currently available item. Invalid
+notices fail the build. Remove or update a replacement if it is later retired.
+Reasons must be factual; removal alone only produces the generic notice.
+
+The first deployment seeds history from the current signed catalog; it cannot
+recover items removed before that deployment. Preserve the deployed history when
+migrating hosting. Set `CATALOG_HISTORY_FILE` to a saved history JSON file to restore
+history during a hosting migration or test a historical catalog locally.
+A history response other than success or first-use 404 fails
+the build, preserving the deployed site. Run `node scripts/test-retirements.mjs`
+to verify retirement and restoration behavior. Historical archive URLs are never
+included in this public index.
+
+## Browsing behavior
 
 `/heroes/` provides hero search, and `/heroes/<heroId>/` lists skin previews with
 Original, Official, Custom and Anime filters matching the app classification.

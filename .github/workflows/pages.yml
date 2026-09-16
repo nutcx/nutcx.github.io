@@ -31,7 +31,7 @@ jobs:
           package-manager: pnpm@11.19.0
 
       - name: Validate item previews and association
-        run: pnpm validate && node scripts/test-item-links.mjs
+        run: pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs
 
   deploy:
     needs: build
