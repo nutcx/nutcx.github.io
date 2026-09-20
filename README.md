@@ -70,6 +70,12 @@ pages remain available and declare the new URL as canonical. Pages are generated
 entry checksums before generating HTML. The pages publish preview metadata only;
 archive download URLs and editable source JSON are not emitted.
 
+The build uses the published, signed v4 bundle at
+`https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes`.
+`NUTCX_DOCUMENT_URL` may override it only with that URL or the legacy root
+`Document.mlbytes` for a deliberate local comparison. GitHub Pages uses the v4
+default so its Preparation previews match NutCracker v11.
+
 The existing Pages workflow rebuilds every six hours and supports manual dispatch.
 A failed download or signature check fails the build, preserving the last deployed
 site. A content release can therefore take up to the next successful rebuild to
@@ -80,11 +86,13 @@ certificate for `com.nutcx.tools`. Production automatic opening requires this fi
 to be deployed and the updated app to be installed. Debug builds intentionally
 are not associated with the production website.
 
-Skin identities hash the canonical hero/source/target IDs and categories. Preparation
-identities hash kind, parent ID, archive URL and image URL rather than list position.
-Renames and reordering keep links; changing a preparation archive or image creates
-a new link. Old links never fall back to another position. A future schema with
-permanent preparation-item IDs can remove this content-identity limitation.
+Skin identities hash the canonical hero/source/target IDs and categories. Legacy
+Preparation identities hash kind, parent ID, archive URL and image URL rather
+than list position. The v4 Preparation catalog instead hashes the type and
+source/target IDs; alternate archives for the same target also hash their
+archive and displayed name/image. Old links never fall back to another position.
+Preparations without an archive still get a preview page and link into the app;
+the preview marks them as unavailable to apply until an archive is supplied.
 
 Run `node scripts/test-item-links.mjs` after building to check shared IDs, metadata,
 website association and signed-bundle tamper rejection. App-side URL tests are in

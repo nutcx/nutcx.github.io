@@ -4,6 +4,7 @@ import { canonicalUrl } from '../lib/site';
 import { loadHeroes, type SharedItem } from '../lib/catalog.mjs';
 interface Props { item: SharedItem; }
 const { item } = Astro.props;
+const previewOnly = item.kind === 'preparation' && 'availableToApply' in item && item.availableToApply === false;
 const link = canonicalUrl(item.path);
 const store = 'https://play.google.com/store/apps/details?id=com.nutcx.tools';
 const appLink = `intent://nutcx.github.io${item.path}#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent(store)};end`;
@@ -33,12 +34,16 @@ const related = [...(hero?.items || [])]
         <p class="eyebrow">Shared with you</p>
         <h1>{item.name}</h1>
         <p>{item.description}</p>
+        {previewOnly &&
+          <p class="item-unavailable" role="status">Preview only — this item is not available to apply in the app yet.</p>}
         <div class="item-actions">
           <a class="button button--primary" href={appLink}>Open in NutCracker</a>
           <a class="button button--secondary" href={store}>Get the Android app</a>
           <button class="button button--secondary" data-copy={link} data-copy-message="Item link copied">Copy link</button>
         </div>
-        <p class="item-note">Open this item in the Android app to see its available options. If you just installed the app, return to this page and tap Open in NutCracker.</p>
+        <p class="item-note">{previewOnly
+          ? 'You can still open this preview in the Android app. If you just installed the app, return to this page and tap Open in NutCracker.'
+          : 'Open this item in the Android app to see its available options. If you just installed the app, return to this page and tap Open in NutCracker.'}</p>
       </div>
     </div>
     {hero && related.length > 0 && <section class="related-skins" aria-labelledby="related-heading">
@@ -58,6 +63,7 @@ const related = [...(hero?.items || [])]
 <style>
   .item-preview{max-width:1160px;margin:auto;padding:40px 24px 80px}.item-back{display:inline-block;margin-bottom:28px;color:var(--text-muted)}
   .item-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}.item-art{border-radius:24px;overflow:hidden;background:#231c19;min-height:280px;display:grid;place-items:center}.item-art img{width:100%;height:auto;max-height:580px;object-fit:contain}.item-copy h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.08;overflow-wrap:anywhere;margin:12px 0 24px}.item-actions{display:flex;flex-wrap:wrap;gap:12px;margin:28px 0}.item-note{font-size:.9rem;line-height:1.7;opacity:.7}.item-copy>p{line-height:1.7}
+  .item-unavailable{padding:12px 16px;border:1px solid var(--outline-soft);border-radius:12px;background:var(--surface-low);color:var(--text)}
   @media(max-width:720px){.item-grid{grid-template-columns:1fr;gap:24px}.item-preview{padding-top:24px}.item-art{min-height:200px}.item-actions{flex-direction:column}}
   .related-skins{margin-top:64px;padding-top:32px;border-top:1px solid var(--outline-soft)}
   .related-header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:24px}.related-header h2{font-size:1.5rem}.related-header a,.related-copy>span{color:var(--primary-bright)}

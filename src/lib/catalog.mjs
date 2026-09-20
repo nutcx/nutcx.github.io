@@ -4,7 +4,17 @@ import { inflateSync } from 'node:zlib';
 
 const key = createPublicKey({ key: Buffer.from('MCowBQYDK2VwAyEA/nqv5THRQyePGH/ARBmY+hzQygbVq34lhQXzf/YmYpk=', 'base64'), format: 'der', type: 'spki' });
 const hash = value => createHash('sha256').update(value).digest('hex');
+const V4_DOCUMENT_URL = 'https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes';
+const ROOT_DOCUMENT_URL = 'https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes';
+const DEFAULT_DOCUMENT_URL = V4_DOCUMENT_URL;
 function requireValue(ok, message) { if (!ok) throw new Error(message); }
+
+export function documentUrl(override = process.env.NUTCX_DOCUMENT_URL) {
+  if (override === undefined || override === '') return DEFAULT_DOCUMENT_URL;
+  requireValue(override === ROOT_DOCUMENT_URL || override === V4_DOCUMENT_URL,
+    'Invalid Document URL override');
+  return override;
+}
 
 export function decodeBundle(data) {
   requireValue(data.length >= 80 && data.length <= 40 * 1024 * 1024, 'Invalid bundle size');
@@ -47,8 +57,8 @@ export function skinPath(hero, source, sourceCategory, target, targetCategory) {
 
 export function projectItems(entries) {
   const items = new Map();
-  const add = (identity, name, image, description, archive, route, metadata = {}) => {
-    if (!name?.trim() || !https(archive)) return;
+  const add = (identity, name, image, description, archive, route, metadata = {}, allowMissingArchive = false) => {
+    if (!name?.trim() || (!https(archive) && !(allowMissingArchive && archive === ''))) return;
     const id = hash(identity);
     const path = route ?? `/preparations/${identity.split(':')[2]}/${id.slice(0, 8)}/`;
     const item = { id, path, name: name.trim(), image: https(image), description, ...metadata };
@@ -66,11 +76,53 @@ export function projectItems(entries) {
       }
     }
   }
-  for (const prep of entries['preparations.json'].preparations) {
-    // The Android catalog only exposes replacements with an available parent.
-    if (!https(prep.archive)) continue;
-    add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'original' });
-    for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'replacement' });
+  const preparations = entries['preparations.json'];
+  if (preparations?.preparationSchemaVersion === 4) {
+    requireValue(Array.isArray(preparations.types), 'Invalid Preparation catalog');
+    for (const type of preparations.types) {
+      requireValue(typeof type.key === 'string' && typeof type.name === 'string' && Array.isArray(type.items), 'Invalid Preparation type');
+      const byIdentity = new Map();
+      for (const item of type.items) {
+        requireValue(Number.isSafeInteger(item.category) && Number.isSafeInteger(item.id)
+          && item.category >= 0 && item.id >= 0, 'Invalid Preparation item identity');
+        const identity = `${item.category}:${item.id}`;
+        requireValue(!byIdentity.has(identity), 'Duplicate Preparation item identity');
+        byIdentity.set(identity, item);
+      }
+      for (const source of type.items) {
+        if (!source.source) continue;
+        const base = `v4:${type.key}:${source.category}:${source.id}`;
+        const path = identity => `/preparations/${source.id}/${hash(identity).slice(0, 8)}/`;
+        const backupIdentity = `${base}:backup`;
+        const backupAvailable = Boolean(https(source.source.backupArchive));
+        add(backupIdentity, source.name, source.image,
+          `Preparation preview · Original${backupAvailable ? '' : ' · Not available to apply'}`,
+          source.source.backupArchive, path(backupIdentity),
+          { kind: 'preparation', group: type.name, filter: 'original', availableToApply: backupAvailable }, true);
+        requireValue(Array.isArray(source.source.upgrades), 'Invalid Preparation upgrades');
+        for (const upgrade of source.source.upgrades) {
+          const target = byIdentity.get(`${upgrade.targetCategory}:${upgrade.targetId}`);
+          requireValue(target, 'Missing Preparation target');
+          const name = upgrade.name ?? target.name;
+          const image = upgrade.image ?? target.image;
+          const variant = hash(`${upgrade.archive}\0${name}\0${image}`).slice(0, 32);
+          const identity = `${base}:target:${target.category}:${target.id}:${variant}`;
+          const available = Boolean(https(upgrade.archive));
+          add(identity, name, image,
+            `Preparation preview · For ${source.name}${available ? '' : ' · Not available to apply'}`,
+            upgrade.archive, path(identity),
+            { kind: 'preparation', group: type.name, filter: 'replacement', availableToApply: available }, true);
+        }
+      }
+    }
+  } else {
+    requireValue(Array.isArray(preparations?.preparations), 'Unsupported Preparation catalog');
+    for (const prep of preparations.preparations) {
+      // The legacy Android catalog only exposes replacements with an available parent.
+      if (!https(prep.archive)) continue;
+      add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'original' });
+      for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'replacement' });
+    }
   }
   const paths = new Set();
   for (const item of items.values()) {
@@ -83,7 +135,7 @@ export function projectItems(entries) {
 let cached;
 export async function loadItems() {
   if (!cached) cached = (async () => {
-    const response = await fetch('https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes', { signal: AbortSignal.timeout(30000) });
+    const response = await fetch(documentUrl(), { signal: AbortSignal.timeout(30000) });
     requireValue(response.ok, `Content download failed: ${response.status}`);
     const chunks = []; let size = 0;
     for await (const chunk of response.body) {
