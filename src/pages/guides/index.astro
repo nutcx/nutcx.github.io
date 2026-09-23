@@ -1,0 +1,12 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { guides } from '../../data/guides';
+import '../../styles/guides.css';
+---
+<SiteLayout title="Android Setup & Troubleshooting Guides" description="Get started with NutCracker Tools, learn how to share previews, and troubleshoot Android access, app links, and unavailable items." page="guides">
+  <div class="guide-shell">
+    <header class="guide-header"><p class="eyebrow">NutCracker help</p><h1>Setup and troubleshooting guides</h1><p>Follow the steps for your device, understand a preview before opening the app, and find help for the status you see.</p></header>
+    <div class="guide-cards">{guides.map(guide => <a href={`/guides/${guide.slug}/`} class="guide-card"><h2>{guide.title}</h2><p>{guide.description}</p><span>Read guide →</span></a>)}</div>
+    <p class="guide-next">Looking for one specific answer? <a href="/support/">Search the support questions</a>.</p>
+  </div>
+</SiteLayout>

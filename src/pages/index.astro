@@ -4,6 +4,7 @@ import Icon from "../components/Icon.astro";
 import { dashboardTools, NUTCRACKER_ANDROID_PACKAGE } from "../data/tools";
 import { SITE, withBase } from "../lib/site";
 import { loadHeroes } from "../lib/catalog.mjs";
+import HeroPortrait from "../components/HeroPortrait.astro";
 
 const heroes = await loadHeroes();
 const featuredHeroes = [1, 7, 17, 25, 56, 53]
@@ -28,14 +29,14 @@ const workflow = [
 const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#library", "dashboard/#library", "support/#installing", "dashboard/#activity"];
 ---
 
-<SiteLayout page="home">
+<SiteLayout page="home" title="Hero Skins, Preparation Previews & Android Guides">
   <section class="hero">
     <div class="hero__grid shell">
       <div class="hero__copy">
         <span class="eyebrow">NutCracker Tools · Android</span>
-        <h1>Your game tools, <em>cracked open.</em></h1>
+        <h1>Hero skins, previews, <em>and Android guides.</em></h1>
         <p class="hero__lead">
-          Explore heroes, understand matchups, preview resources, and manage local installs from one calm, focused companion.
+          Browse the NutCracker catalog, share skin and preparation previews, and find the setup steps for your Android device.
         </p>
         <div class="hero__actions">
           <a class="button button--primary" href={withBase("heroes/")}>
@@ -45,7 +46,7 @@ const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#li
             Browse preparations <Icon name="arrow" size={18} />
           </a>
         </div>
-        <a class="home-app-link" href={playStore}><Icon name="download" size={18} /> Get the Android app on Google Play</a>
+        <a class="home-app-link" href={playStore} data-play-placement="home"><Icon name="download" size={18} /> Get the Android app on Google Play</a>
         <div class="hero__trust" aria-label="Product principles">
           <span class="trust-item"><Icon name="check" size={16} /> Android 8.0+</span>
           <span class="trust-item"><Icon name="check" size={16} /> Local-first file workflow</span>
@@ -102,11 +103,11 @@ const featureLinks = ["dashboard/#library", "dashboard/#library", "dashboard/#li
       </div>
       <div class="home-heroes">
         {featuredHeroes.map(hero => <a class="home-hero" href={withBase(`heroes/${hero.id}/`)}>
-          {hero.image && <img src={hero.image} alt="" width="80" height="80" loading="lazy" decoding="async" />}
+          {hero.image && <HeroPortrait src={hero.image} size={80} />}
           <h3>{hero.name}</h3><span>Browse skins →</span>
         </a>)}
       </div>
-      <p class="home-preparations">Looking for more? <a href={withBase("preparations/")}>Explore preparations →</a></p>
+      <p class="home-preparations">Looking for more? <a href={withBase("preparations/")}>Explore preparations →</a> · <a href={withBase("guides/")}>Read setup and sharing guides →</a></p>
     </div>
   </section>}
 

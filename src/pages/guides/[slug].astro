@@ -1,0 +1,17 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { guides } from '../../data/guides';
+import '../../styles/guides.css';
+export function getStaticPaths() { return guides.map(guide => ({params:{slug:guide.slug},props:{guide}})); }
+const { guide } = Astro.props;
+---
+<SiteLayout title={guide.title} description={guide.description} page="guides">
+  <article class="guide-shell guide-article">
+    <Breadcrumbs items={[{name:'Guides',path:'/guides/'},{name:guide.title,path:`/guides/${guide.slug}/`}]} />
+    <header class="guide-header"><p class="eyebrow">NutCracker guide</p><h1>{guide.title}</h1><p>{guide.intro}</p></header>
+    <nav class="guide-contents" aria-label="On this page"><h2>In this guide</h2><ol>{guide.sections.map((section,index) => <li><a href={`#step-${index+1}`}>{section.title.replace(/^\d+\.\s*/, '')}</a></li>)}</ol></nav>
+    {guide.sections.map((section,index) => <section class="guide-section" id={`step-${index+1}`}><h2>{section.title}</h2>{section.paragraphs.map(paragraph => <p>{paragraph}</p>)}</section>)}
+    <div class="guide-next"><h2>Continue exploring</h2><p><a href="/heroes/">Browse hero skins</a> · <a href="/preparations/">Browse preparations</a> · <a href="https://play.google.com/store/apps/details?id=com.nutcx.tools" data-play-placement="guide">Get NutCracker on Google Play</a></p><ul>{guides.filter(other=>other.slug!==guide.slug).map(other=><li><a href={`/guides/${other.slug}/`}>{other.title}</a></li>)}</ul></div>
+  </article>
+</SiteLayout>

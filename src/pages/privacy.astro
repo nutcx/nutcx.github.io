@@ -2,10 +2,11 @@
 import SiteLayout from "../layouts/SiteLayout.astro";
 import { SITE } from "../lib/site";
 
-const effectiveDate = "September 2, 2026";
+const effectiveDate = "September 24, 2026";
 const sections = [
   ["overview", "Overview"],
   ["information", "Information we process"],
+  ["website-analytics", "Optional website analytics"],
   ["services", "Third-party services"],
   ["advertising", "Advertising"],
   ["retention", "Retention and choices"],
@@ -43,7 +44,7 @@ const sections = [
 
       <article class="legal-content">
         <div class="legal-intro">
-          <p><strong>Summary:</strong> NutCracker Tools has no user-account system. Basic settings and recent activity are kept on your device. Connected features use Google Firebase, and the app may show Google Mobile Ads after the applicable consent process. This website does not use analytics or advertising trackers.</p>
+          <p><strong>Summary:</strong> NutCracker Tools has no user-account system. Basic settings and recent activity are kept on your device. Connected features use Google Firebase, and the app may show Google Mobile Ads after the applicable consent process. This website uses optional Google Analytics only after you allow it. You can decline or change your choice in the footer.</p>
         </div>
 
         <section class="legal-section" id="overview">
@@ -62,12 +63,19 @@ const sections = [
                 <tr><td>Analytics and diagnostics</td><td>Feature usage, app version, installation identifiers, crash details, and performance information</td><td>Improve reliability and understand general usage</td></tr>
                 <tr><td>Advertising</td><td>Consent choices, ad interactions, and advertising signals where allowed</td><td>Deliver, measure, and protect ads</td></tr>
                 <tr><td>Optional notifications</td><td>Firebase installation and registration identifiers after opt-in</td><td>Send announcements and important notices</td></tr>
-                <tr><td>Website data</td><td>Theme preferences and standard hosting request information</td><td>Operate and secure this website</td></tr>
+                <tr><td>Website data</td><td>Theme and analytics preferences, standard hosting request information, and optional Analytics data after consent</td><td>Operate the website and understand visits and Google Play clicks</td></tr>
               </tbody>
             </table>
           </div>
           <p>Our custom analytics events are designed not to include free-form content, credentials, or authentication tokens. Firebase may process standard app, device, network, and installation information under Google’s documentation and settings.</p>
-          <p>This website does not use website analytics, ad pixels, account cookies, or a form backend. GitHub Pages may process standard request information for hosting, security, and abuse prevention. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>
+          <p>This website has no advertising pixels, account login, or form backend. GitHub Pages may process standard request information for hosting, security, and abuse prevention. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>
+        </section>
+
+        <section class="legal-section" id="website-analytics">
+          <h2>Optional website analytics</h2>
+          <p>If you choose Allow analytics, the website loads Google Analytics to measure page visits and clicks to the NutCracker Google Play listing. Google processes cookie identifiers and standard browser, device, and connection information. Our page addresses omit query strings and fragments, and referrers are limited to their website origin. Search-box text, local activity notes, selected files, and pairing codes are not sent by our website tracking.</p>
+          <p>Before you allow analytics, or when you choose No thanks, the website does not load the Google Analytics tag. Website advertising storage, advertising personalization, and Google Signals are disabled in the tag. We do not use these events to confirm an app installation; a Google Play click records only a visit to the listing.</p>
+          <p>Your choice is saved in this browser. Analytics cookies are configured with a 30-day lifetime, refreshed by activity. Use Analytics choices in the footer to turn tracking off; this disables further measurement and clears this site's Analytics cookies. It does not erase data already received by Google. Clearing your browser's site data also removes your saved choice.</p>
         </section>
 
         <section class="legal-section" id="services">
@@ -77,6 +85,7 @@ const sections = [
             <li><strong>Google advertising services:</strong> AdMob/Google Mobile Ads, User Messaging Platform, and related advertising partners.</li>
             <li><strong>Connected services:</strong> External APIs and content-delivery providers used by connected app features.</li>
             <li><strong>Website hosting:</strong> GitHub Pages.</li>
+            <li><strong>Optional website measurement:</strong> Google Analytics, after you allow it.</li>
           </ul>
           <p>These providers may receive the information needed to provide their services, along with standard technical details such as IP address, device or browser type, language, and timestamps. Their own privacy policies also apply.</p>
           <p>Learn more from <a href="https://firebase.google.com/support/privacy">Firebase Privacy and Security</a> and the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>

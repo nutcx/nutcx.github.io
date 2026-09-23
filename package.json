@@ -14,10 +14,11 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "validate": "node scripts/validate-site.mjs",
-    "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs"
+    "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs && node scripts/test-analytics.mjs && node scripts/test-search-readiness.mjs"
   },
   "dependencies": {
-    "astro": "7.2.10"
+    "astro": "7.2.10",
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

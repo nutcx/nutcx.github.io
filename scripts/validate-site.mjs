@@ -27,6 +27,10 @@ function expectFile(path) {
   "support/index.html",
   "privacy/index.html",
   "terms/index.html",
+  "guides/index.html",
+  "guides/get-started/index.html",
+  "guides/shared-previews/index.html",
+  "guides/troubleshooting/index.html",
   "sitemap.xml",
   "favicon.svg",
   "brand-mark.svg",
@@ -43,7 +47,9 @@ if (existsSync(dist)) {
     const html = readFileSync(file, "utf8");
     if (!html.includes("<meta name=\"description\"")) errors.push(`${relative(dist, file)} has no meta description`);
     if (!html.includes("<title>")) errors.push(`${relative(dist, file)} has no title`);
-    if (/\b(?:TODO|FIXME|undefined|null)\b/.test(html)) errors.push(`${relative(dist, file)} contains an unresolved placeholder`);
+    // Bundled scripts legitimately contain JavaScript null/undefined values.
+    const markup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    if (/\b(?:TODO|FIXME|undefined|null)\b/.test(markup)) errors.push(`${relative(dist, file)} contains an unresolved placeholder`);
 
     for (const match of html.matchAll(attributePattern)) {
       const raw = match[1];
@@ -64,7 +70,7 @@ if (existsSync(dist)) {
   }
 
   const privacy = readFileSync(join(dist, "privacy/index.html"), "utf8");
-  ["Firebase", "Google Mobile Ads", "Third-party services", "GitHub Pages", "September 2, 2026"].forEach((term) => {
+  ["Firebase", "Google Mobile Ads", "Third-party services", "GitHub Pages", "September 24, 2026", "Optional website analytics", "30-day"].forEach((term) => {
     if (!privacy.includes(term)) errors.push(`Privacy policy is missing required disclosure: ${term}`);
   });
 

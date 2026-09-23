@@ -1,6 +1,7 @@
 ---
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import AnalyticsConsent from "../components/AnalyticsConsent.astro";
 import { SITE, canonicalUrl, type PageKey, withBase } from "../lib/site";
 import "../styles/global.css";
 
@@ -70,6 +71,7 @@ const canonical = canonicalUrl(canonicalPath ?? Astro.url.pathname.replace(impor
       <slot />
     </main>
     <Footer />
+    <AnalyticsConsent enabled={!noIndex} />
     <div class="toast" role="status" aria-live="polite" aria-atomic="true" data-toast></div>
     <script>
       import "../scripts/site";

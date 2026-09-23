@@ -2,6 +2,7 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { canonicalUrl } from '../lib/site';
 import { loadHeroes, type SharedItem } from '../lib/catalog.mjs';
+import Breadcrumbs from './Breadcrumbs.astro';
 interface Props { item: SharedItem; }
 const { item } = Astro.props;
 const previewOnly = item.kind === 'preparation' && 'availableToApply' in item && item.availableToApply === false;
@@ -9,6 +10,12 @@ const link = canonicalUrl(item.path);
 const store = 'https://play.google.com/store/apps/details?id=com.nutcx.tools';
 const appLink = `intent://nutcx.github.io${item.path}#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent(store)};end`;
 const hero = item.kind === 'skin' ? (await loadHeroes()).find(hero => hero.id === item.heroId) : undefined;
+const context = hero ? `${hero.name} skin` : `${item.group || 'Preparation'} resource`;
+const pageTitle = `${item.name} – ${context} preview`;
+const pageDescription = `${item.name}: ${context.toLowerCase()} preview. ${item.description}. ${previewOnly ? 'Preview only; currently unavailable to apply.' : 'View the image, share this item, or open it in NutCracker.'}`;
+const breadcrumbItems = item.kind === 'skin'
+  ? [{name:'Heroes',path:'/heroes/'},{name:hero?.name || `Hero ${item.heroId}`,path:`/heroes/${item.heroId}/`},{name:item.name,path:item.path}]
+  : [{name:'Preparations',path:'/preparations/'},{name:item.name,path:item.path}];
 // A skin can have several source-specific previews. Recommend each destination once.
 const tokens = (path: string) => path.match(/\/heroes\/\d+\/(\d+(?:c-?\d+)?)(?:-(\d+(?:c-?\d+)?))?\/$/);
 const current = tokens(item.path);
@@ -23,27 +30,30 @@ const related = [...(hero?.items || [])]
     return true;
   }).slice(0, 4);
 ---
-<SiteLayout canonicalPath={item.path} title={item.name} description={`${item.description}. View ${item.name} in NutCracker Tools.`} socialImage={item.image || undefined}>
+<SiteLayout canonicalPath={item.path} title={pageTitle} description={pageDescription} socialImage={item.image || undefined}>
   <article class="item-preview">
     <a class="item-back" href={item.kind === "skin" ? `/heroes/${item.heroId}/` : "/preparations/"}>← {item.kind === "skin" ? "Back to hero skins" : "Back to preparations"}</a>
+    <Breadcrumbs items={breadcrumbItems} />
     <div class="item-grid">
       <div class="item-art">
-        {item.image ? <img src={item.image} alt={item.name} width="960" height="720" /> : <span>Preview image unavailable</span>}
+        {item.image ? <img src={item.image} alt={`${item.name} – ${context} preview`} width="960" height="720" fetchpriority="high" decoding="async" /> : <span>Preview image unavailable</span>}
       </div>
       <div class="item-copy">
-        <p class="eyebrow">Shared with you</p>
+        <p class="eyebrow">{context} preview</p>
         <h1>{item.name}</h1>
         <p>{item.description}</p>
+        <dl class="item-facts"><div><dt>Catalog</dt><dd>{hero?.name || item.group || 'Preparations'}</dd></div><div><dt>Type</dt><dd>{item.filter}</dd></div>{item.kind === 'preparation' && <div><dt>Availability</dt><dd>{previewOnly ? 'Preview only' : 'Archive listed; check in app'}</dd></div>}</dl>
         {previewOnly &&
           <p class="item-unavailable" role="status">Preview only — this item is not available to apply in the app yet.</p>}
         <div class="item-actions">
           <a class="button button--primary" href={appLink}>Open in NutCracker</a>
-          <a class="button button--secondary" href={store}>Get the Android app</a>
+          <a class="button button--secondary" href={store} data-play-placement="item-preview">Get the Android app</a>
           <button class="button button--secondary" data-copy={link} data-copy-message="Item link copied">Copy link</button>
         </div>
         <p class="item-note">{previewOnly
           ? 'You can still open this preview in the Android app. If you just installed the app, return to this page and tap Open in NutCracker.'
           : 'Open this item in the Android app to see its available options. If you just installed the app, return to this page and tap Open in NutCracker.'}</p>
+        <p class="item-help"><a href="/guides/shared-previews/">How to open and share previews</a> · <a href="/guides/troubleshooting/">Get help with an unavailable item</a></p>
       </div>
     </div>
     {hero && related.length > 0 && <section class="related-skins" aria-labelledby="related-heading">
@@ -64,6 +74,7 @@ const related = [...(hero?.items || [])]
   .item-preview{max-width:1160px;margin:auto;padding:40px 24px 80px}.item-back{display:inline-block;margin-bottom:28px;color:var(--text-muted)}
   .item-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}.item-art{border-radius:24px;overflow:hidden;background:#231c19;min-height:280px;display:grid;place-items:center}.item-art img{width:100%;height:auto;max-height:580px;object-fit:contain}.item-copy h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.08;overflow-wrap:anywhere;margin:12px 0 24px}.item-actions{display:flex;flex-wrap:wrap;gap:12px;margin:28px 0}.item-note{font-size:.9rem;line-height:1.7;opacity:.7}.item-copy>p{line-height:1.7}
   .item-unavailable{padding:12px 16px;border:1px solid var(--outline-soft);border-radius:12px;background:var(--surface-low);color:var(--text)}
+  .item-facts{margin-top:20px;padding:16px;background:var(--surface-low);border-radius:12px}.item-facts>div{display:flex;flex-wrap:wrap;gap:8px 20px;padding:4px 0}.item-facts dt{min-width:90px;color:var(--text-muted)}.item-facts dd{text-transform:capitalize}.item-help{margin-top:20px;font-size:.9rem}.item-help a{color:var(--primary-bright);text-decoration:underline}
   @media(max-width:720px){.item-grid{grid-template-columns:1fr;gap:24px}.item-preview{padding-top:24px}.item-art{min-height:200px}.item-actions{flex-direction:column}}
   .related-skins{margin-top:64px;padding-top:32px;border-top:1px solid var(--outline-soft)}
   .related-header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:24px}.related-header h2{font-size:1.5rem}.related-header a,.related-copy>span{color:var(--primary-bright)}

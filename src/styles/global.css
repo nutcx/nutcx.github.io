@@ -56,7 +56,7 @@
     --text-soft: #5e443b;
     --text-muted: #7b5f55;
     --primary: #b84a00;
-    --primary-bright: #d85c0b;
+    --primary-bright: #a94200;
     --on-primary: #ffffff;
     --primary-container: #ffd8be;
     --on-primary-container: #3b1200;
@@ -76,7 +76,7 @@
   html { overflow-x: clip; background: var(--bg); }
 
   body {
-    min-width: 320px;
+    min-width: 0;
     min-height: 100vh;
     background:
       radial-gradient(circle at 85% 4%, color-mix(in srgb, var(--primary) 10%, transparent) 0, transparent 32rem),
@@ -577,10 +577,11 @@
       overflow-y: auto;
       padding: 24px 20px;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transition: translate .24s ease, opacity .2s ease;
+      transition: translate .24s ease, opacity .2s ease, visibility .24s;
     }
-    .primary-nav.is-open { translate: 0; opacity: 1; pointer-events: auto; }
+    .primary-nav.is-open { translate: 0; opacity: 1; visibility: visible; pointer-events: auto; }
     .primary-nav__links { display: grid; gap: 4px; }
     .nav-link { padding: 14px 16px; font-size: 1rem; }
     .primary-nav__actions { border-top: 1px solid var(--outline-soft); padding-top: 20px; }

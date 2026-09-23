@@ -5,6 +5,9 @@ export default defineConfig({
   base: "/",
   output: "static",
   trailingSlash: "always",
+  image: {
+    remotePatterns: [{ protocol: "https", hostname: "akmweb.youngjoygame.com", pathname: "/web/svnres/img/**" }],
+  },
   build: {
     format: "directory",
   },

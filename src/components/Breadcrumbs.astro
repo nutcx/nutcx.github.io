@@ -1,0 +1,12 @@
+---
+import { canonicalUrl } from '../lib/site';
+interface Props { items: { name: string; path: string }[]; }
+const { items } = Astro.props;
+const breadcrumbs = [{ name: 'Home', path: '/' }, ...items];
+const data = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: breadcrumbs.map((item, index) => ({ '@type': 'ListItem', position: index + 1, name: item.name, item: canonicalUrl(item.path) })) };
+---
+<nav aria-label="Breadcrumb" class="breadcrumbs"><ol>{breadcrumbs.map((item, index) => <li>{index === breadcrumbs.length - 1 ? <span aria-current="page">{item.name}</span> : <a href={item.path}>{item.name}</a>}</li>)}</ol></nav>
+<script type="application/ld+json" is:inline set:html={JSON.stringify(data).replaceAll('<', '\\u003c')} />
+<style>
+  .breadcrumbs{margin-bottom:24px;font-size:.88rem;color:var(--text-soft)}.breadcrumbs ol{display:flex;flex-wrap:wrap;gap:8px;list-style:none}.breadcrumbs li{display:flex;gap:8px;overflow-wrap:anywhere}.breadcrumbs li+li::before{content:'/';color:var(--text-muted)}.breadcrumbs a{color:var(--primary-bright);text-decoration:underline;text-underline-offset:3px}
+</style>

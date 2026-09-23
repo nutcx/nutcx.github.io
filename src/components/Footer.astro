@@ -22,6 +22,7 @@ import { SITE, withBase } from "../lib/site";
     </div>
     <div class="footer-group">
       <h2>Help</h2>
+      <a href={withBase("guides/")}>Guides</a>
       <a href={withBase("support/")}>Support center</a>
       <a href={withBase("support/#setup")}>Setup guide</a>
       <a href={SITE.issues}>Report an issue <Icon name="external" size={14} /></a>
@@ -30,6 +31,7 @@ import { SITE, withBase } from "../lib/site";
       <h2>Legal</h2>
       <a href={withBase("privacy/")}>Privacy policy</a>
       <a href={withBase("terms/")}>Terms of use</a>
+      <button type="button" class="analytics-settings" data-analytics-settings hidden>Analytics choices</button>
     </div>
   </div>
   <div class="site-footer__bottom shell">
@@ -37,3 +39,4 @@ import { SITE, withBase } from "../lib/site";
     <p>NutCracker Tools is an independent Android companion.</p>
   </div>
 </footer>
+<style>.analytics-settings{background:transparent;border:0;padding:0;min-height:44px;text-align:left;color:var(--text-soft);font:inherit}.analytics-settings:hover{color:var(--primary-bright)}.analytics-settings[hidden]{display:none}</style>

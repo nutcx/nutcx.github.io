@@ -3,16 +3,20 @@ import SiteLayout from '../../../layouts/SiteLayout.astro';
 import CatalogItems from '../../../components/CatalogItems.astro';
 import { loadHeroes } from '../../../lib/catalog.mjs';
 import '../../../styles/catalog.css';
+import HeroPortrait from '../../../components/HeroPortrait.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 export async function getStaticPaths() { return (await loadHeroes()).map(hero => ({ params: { heroId: String(hero.id) }, props: { hero } })); }
 const { hero } = Astro.props;
+const categories = [...new Set(hero.items.map(item => item.filter))].join(', ');
 ---
 <SiteLayout title={`${hero.name} skins`} description={`Browse ${hero.name}'s available original, official, custom and anime skins. Preview, share, or open an item in NutCracker Tools.`} page="heroes" socialImage={hero.image || undefined}>
   <div class="catalog-shell">
-    <a class="catalog-back" href="/heroes/">← All heroes</a>
+    <Breadcrumbs items={[{name:'Heroes',path:'/heroes/'},{name:`${hero.name} skins`,path:`/heroes/${hero.id}/`}]} />
     <header class="catalog-heading hero-heading">
-      {hero.image && <img src={hero.image} alt="" width="88" height="88" />}
-      <div><p class="eyebrow">Hero #{hero.id}</p><h1>{hero.name}</h1><p>{hero.items.length} skin options. Choose a preview to see more.</p></div>
+      {hero.image && <HeroPortrait src={hero.image} size={88} eager />}
+      <div><p class="eyebrow">Hero #{hero.id}</p><h1>{hero.name} skin previews</h1><p>Explore {hero.items.length} catalog options for {hero.name}. Available categories: {categories}. Open a card to see its preview and source information before continuing in NutCracker.</p></div>
     </header>
     <CatalogItems items={hero.items} />
+    <section class="catalog-help"><h2>Choosing a {hero.name} preview</h2><p>Use the name search and category buttons to narrow this hero's catalog. Several entries may show the same destination with different source options; check the “For” label on the preview before opening it in the app.</p><p><a href="/guides/shared-previews/">Read the preview and sharing guide</a> or <a href="/guides/get-started/">set up NutCracker on Android</a>.</p></section>
   </div>
 </SiteLayout>
