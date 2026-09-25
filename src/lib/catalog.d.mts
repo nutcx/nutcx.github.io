@@ -1,4 +1,7 @@
-export interface SharedItem { id: string; path: string; name: string; image: string; description: string; kind: 'skin' | 'preparation'; heroId?: number; group?: string; filter: string; availableToApply?: boolean; }
+export interface SharedItem { id: string; sourceId: string; path: string; name: string; image: string; description: string; kind: 'skin' | 'preparation'; heroId?: number; group?: string; filter: string; availableToApply?: boolean; }
+export interface ItemGroup { source: SharedItem; replacements: SharedItem[]; }
+export function groupItemsBySource(items: SharedItem[]): ItemGroup[];
+export function loadItemGroup(sourceId: string): Promise<ItemGroup | undefined>;
 export function loadItems(): Promise<SharedItem[]>;
 export function documentUrl(override?: string): string;
 export function decodeBundle(data: Uint8Array): Record<string, unknown>;

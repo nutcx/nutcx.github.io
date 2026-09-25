@@ -1,25 +1,31 @@
 ---
-import type { SharedItem } from '../lib/catalog.mjs';
+import type { SharedItem, ItemGroup } from '../lib/catalog.mjs';
 import { canonicalUrl } from '../lib/site';
-interface Props { items: SharedItem[]; preparation?: boolean; }
-const { items, preparation = false } = Astro.props;
-const filters = preparation ? ['all', 'original', 'replacement'] : ['all', 'original', 'official', 'custom', 'anime'];
+import '../styles/catalog.css';
+interface Props { items?: SharedItem[]; sourceGroups?: ItemGroup[]; preparation?: boolean; headingLevel?: 2 | 3; }
+const { sourceGroups, preparation = false, headingLevel = 2 } = Astro.props;
+const items = sourceGroups?.map(group => group.source) ?? Astro.props.items ?? [];
+const sourceCounts = new Map(sourceGroups?.map(group => [group.source.id, group.replacements.length]));
+const categories = ['official', 'custom', 'anime'].filter(filter => items.some(item => item.filter === filter));
+const filters = !sourceGroups && categories.length > 1 ? ['all', ...categories] : [];
 const groups = [...new Set(items.map(item => item.group).filter(Boolean))].sort();
+const noun = sourceGroups ? 'original' : 'replacement';
+const Heading = headingLevel === 3 ? 'h3' : 'h2';
 ---
-<section data-catalog>
+<section data-catalog data-catalog-singular={noun} data-catalog-plural={`${noun}s`}>
   <div class="catalog-controls">
-    <label>Search {preparation ? 'preparations' : 'skins'}<input type="search" placeholder="Search by name…" data-catalog-search /></label>
-    {preparation && <label>Category<select data-catalog-group><option value="">All categories</option>{groups.map(group => <option value={group}>{group}</option>)}</select></label>}
+    <label>Search {sourceGroups ? (preparation ? 'original preparations' : 'original skins') : 'replacements'}<input type="search" placeholder="Search by name…" data-catalog-search /></label>
+    {preparation && sourceGroups && <label>Category<select data-catalog-group><option value="">All categories</option>{groups.map(group => <option value={group}>{group}</option>)}</select></label>}
   </div>
-  <div class="catalog-filters" role="group" aria-label="Content type">
+  {filters.length > 0 && <div class="catalog-filters" role="group" aria-label="Replacement type">
     {filters.map(filter => <button type="button" data-catalog-filter={filter} aria-pressed={filter === 'all'}>{filter[0].toUpperCase() + filter.slice(1)}</button>)}
-  </div>
-  <p class="catalog-count" role="status" aria-live="polite" data-catalog-count>{items.length} items</p>
+  </div>}
+  <p class="catalog-count" role="status" aria-live="polite" data-catalog-count>{items.length} {noun}{items.length === 1 ? '' : 's'}</p>
   <div class="catalog-grid">
     {items.map(item => <article class="catalog-card" data-catalog-card data-search={`${item.name} ${item.description}`} data-filter={item.filter} data-group={item.group || ''}>
       <a class="catalog-card__preview" href={item.path}>
         <div class="catalog-card__art">{item.image ? <img src={item.image} alt="" width="480" height="300" loading="lazy" decoding="async" /> : <span>Preview unavailable</span>}</div>
-        <div class="catalog-card__body"><small class="catalog-tag">{item.filter}</small><h2>{item.name}</h2><p>{item.description}</p></div>
+        <div class="catalog-card__body"><small class="catalog-tag">{preparation && sourceGroups ? item.group : item.filter}</small><Heading>{item.name}</Heading><p>{sourceGroups ? `${sourceCounts.get(item.id)} replacement${sourceCounts.get(item.id) === 1 ? '' : 's'}` : item.description}</p>{sourceGroups && <span class="catalog-card__next">{sourceCounts.get(item.id) ? 'View replacements' : 'View original'} →</span>}{!sourceGroups && item.availableToApply === false && <small>Preview only</small>}</div>
       </a>
       <div class="catalog-card__actions">
         <a href={`intent://nutcx.github.io${item.path}#Intent;scheme=https;package=com.nutcx.tools;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=com.nutcx.tools')};end`}>Open in app</a>

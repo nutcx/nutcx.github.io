@@ -1,15 +1,16 @@
 ---
 import SiteLayout from '../../layouts/SiteLayout.astro';
 import CatalogItems from '../../components/CatalogItems.astro';
-import { loadItems } from '../../lib/catalog.mjs';
+import { loadItems, groupItemsBySource } from '../../lib/catalog.mjs';
 import '../../styles/catalog.css';
 const items = (await loadItems()).filter(item => item.kind === 'preparation');
+const sourceGroups = groupItemsBySource(items);
 const groups = [...new Set(items.map(item => item.group).filter(Boolean))];
 ---
 <SiteLayout title="Preparation Resource Previews" description="Browse preparation resources by category, compare original and replacement previews, and check availability before opening an item in NutCracker." page="preparations">
   <div class="catalog-shell">
-    <header class="catalog-heading"><p class="eyebrow">Content library</p><h1>Preparation resource previews.</h1><p>Explore {items.length} previews across {groups.length} categories. Use the category selector and original/replacement filters to find an item, then check its preview and availability.</p><a href="/heroes/">Browse hero skins →</a></header>
-    <CatalogItems items={items} preparation />
+    <header class="catalog-heading"><p class="eyebrow">Content library</p><h1>Preparation resource previews.</h1><p>Choose from {sourceGroups.length} originals across {groups.length} categories. Open the preparation you have to see its replacement options.</p><a href="/heroes/">Browse hero skins →</a></header>
+    <CatalogItems sourceGroups={sourceGroups} preparation />
     <section class="catalog-help"><h2>Understanding preparation options</h2><p>An original entry represents the source item; a replacement preview names the source it is intended for. Some entries are marked “Preview only” because an archive is not currently available. These remain visible so you can identify and share them.</p><p><a href="/guides/shared-previews/">Learn how shared previews work</a> or <a href="/guides/troubleshooting/">troubleshoot an unavailable item</a>.</p></section>
   </div>
 </SiteLayout>

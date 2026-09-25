@@ -46,6 +46,13 @@ Guide content is based on the site's existing app support guidance. Catalog page
 use available names, categories, counts, source descriptions, and availability;
 they do not invent hero statistics or resource behavior.
 
+Heroes and Preparations list originals first, matching the Android app's browse
+flow. An original's existing preview page lists only its own replacements; direct
+replacement links include navigation back to that original. Relationships use
+the publisher's full source identity, including preparation type and category,
+so same-name items and repeated numeric IDs do not get merged. A skin original
+with no backup archive is retained when it has an available replacement.
+
 Hero portraits are processed by Astro/Sharp from the existing authorized CDN
 into WebP files at their displayed size and double density. Explicit dimensions
 reserve space and off-screen portraits load lazily. Large item artwork continues

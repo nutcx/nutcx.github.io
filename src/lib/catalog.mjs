@@ -61,18 +61,23 @@ export function projectItems(entries) {
     if (!name?.trim() || (!https(archive) && !(allowMissingArchive && archive === ''))) return;
     const id = hash(identity);
     const path = route ?? `/preparations/${identity.split(':')[2]}/${id.slice(0, 8)}/`;
-    const item = { id, path, name: name.trim(), image: https(image), description, ...metadata };
+    const item = { id, sourceId: id, path, name: name.trim(), image: https(image), description, ...metadata };
     if (items.has(id)) requireValue(JSON.stringify(items.get(id)) === JSON.stringify(item), 'Conflicting shared item identity');
     items.set(id, item);
   };
   for (const hero of entries['heroes.json'].heroes) {
     for (const skin of hero.skins) {
       if (!skin.source) continue;
-      add(`skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', skin.source.backupArchive, skinPath(hero.heroId, skin.skinId, skin.category), { kind: 'skin', heroId: hero.heroId, filter: 'original' });
+      const backupIdentity = `skin:BACKUP:${hero.heroId}:${skin.skinId}:${skin.category}:0:${skin.category}`;
+      const backupAvailable = Boolean(https(skin.source.backupArchive));
+      // Like the app, keep a source with usable replacements even without its own archive.
+      if (backupAvailable || skin.source.upgrades.some(upgrade => https(upgrade.archive))) {
+        add(backupIdentity, skin.name, skin.landscape || skin.portrait, 'Skin preview · Original', backupAvailable ? skin.source.backupArchive : '', skinPath(hero.heroId, skin.skinId, skin.category), { kind: 'skin', heroId: hero.heroId, filter: 'original', availableToApply: backupAvailable }, true);
+      }
       for (const upgrade of skin.source.upgrades) {
         const target = hero.skins.find(s => s.skinId === upgrade.targetSkinId && s.category === upgrade.targetCategory);
         requireValue(target, 'Missing skin target');
-        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive, skinPath(hero.heroId, skin.skinId, skin.category, target.skinId, target.category), { kind: 'skin', heroId: hero.heroId, filter: skinFilter(target) });
+        add(`skin:REPLACEMENT:${hero.heroId}:${skin.skinId}:${skin.category}:${target.skinId}:${target.category}`, target.name, target.landscape || target.portrait, `Skin preview · For ${skin.name}`, upgrade.archive, skinPath(hero.heroId, skin.skinId, skin.category, target.skinId, target.category), { kind: 'skin', heroId: hero.heroId, filter: skinFilter(target), sourceId: hash(backupIdentity) });
       }
     }
   }
@@ -111,7 +116,7 @@ export function projectItems(entries) {
           add(identity, name, image,
             `Preparation preview · For ${source.name}${available ? '' : ' · Not available to apply'}`,
             upgrade.archive, path(identity),
-            { kind: 'preparation', group: type.name, filter: 'replacement', availableToApply: available }, true);
+            { kind: 'preparation', group: type.name, filter: 'replacement', availableToApply: available, sourceId: hash(backupIdentity) }, true);
         }
       }
     }
@@ -120,8 +125,9 @@ export function projectItems(entries) {
     for (const prep of preparations.preparations) {
       // The legacy Android catalog only exposes replacements with an available parent.
       if (!https(prep.archive)) continue;
-      add(`preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`, prep.name, prep.image, 'Preparation preview · Original', prep.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'original' });
-      for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'replacement' });
+      const backupIdentity = `preparation:BACKUP:${prep.preparationId}:${prep.archive}:${prep.image}`;
+      add(backupIdentity, prep.name, prep.image, 'Preparation preview · Original', prep.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'original' });
+      for (const item of prep.items) add(`preparation:REPLACEMENT:${prep.preparationId}:${item.archive}:${item.image}`, item.name, item.image, `Preparation preview · For ${prep.name}`, item.archive, undefined, { kind: 'preparation', group: prep.name, filter: 'replacement', sourceId: hash(backupIdentity) });
     }
   }
   const paths = new Set();
@@ -149,6 +155,26 @@ export async function loadItems() {
 export function skinFilter(skin) {
   if (skin.category === 0) return 'official';
   return String(skin.type || '').split('|').map(part => part.trim()).filter(Boolean)[0]?.toLowerCase() === 'anime' ? 'anime' : 'custom';
+}
+
+// Group by publisher identities, never display names or numeric preparation IDs alone.
+export function groupItemsBySource(items) {
+  const groups = new Map(items.filter(item => item.filter === 'original')
+    .map(source => [source.id, { source, replacements: [] }]));
+  for (const item of items) {
+    if (item.filter === 'original') continue;
+    const group = groups.get(item.sourceId);
+    requireValue(group, `Missing catalog source for ${item.path}`);
+    group.replacements.push(item);
+  }
+  return [...groups.values()];
+}
+
+let cachedGroups;
+export async function loadItemGroup(sourceId) {
+  if (!cachedGroups) cachedGroups = loadItems().then(items =>
+    new Map(groupItemsBySource(items).map(group => [group.source.id, group])));
+  return (await cachedGroups).get(sourceId);
 }
 
 export async function loadHeroes() {

@@ -111,6 +111,6 @@ assert.equal(skinFilter({ category: 1 }), 'custom');
 const roster = readFileSync('dist/heroes/index.html', 'utf8');
 assert.ok(roster.includes('Miya') && roster.includes('href="/heroes/1/"'));
 const heroPage = readFileSync('dist/heroes/1/index.html', 'utf8');
-assert.ok(heroPage.includes('data-catalog-filter="anime"') && heroPage.includes('href="/heroes/1/1011/"'));
+assert.ok(!heroPage.includes('data-catalog-filter=') && heroPage.includes('href="/heroes/1/1011/"'));
 assert.ok(readFileSync('dist/preparations/index.html', 'utf8').includes('data-catalog-group'));
 console.log('Catalog checks passed: classifications, hero names, browse routes and item navigation.');

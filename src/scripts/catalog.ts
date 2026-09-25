@@ -16,7 +16,9 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-catalog]')) {
       if (match) visible++;
     }
     const count = root.querySelector('[data-catalog-count]');
-    const noun = root.querySelector('.hero-grid') ? (visible === 1 ? 'hero' : 'heroes') : (visible === 1 ? 'item' : 'items');
+    const noun = root.dataset.catalogSingular
+      ? (visible === 1 ? root.dataset.catalogSingular : root.dataset.catalogPlural)
+      : root.querySelector('.hero-grid') ? (visible === 1 ? 'hero' : 'heroes') : (visible === 1 ? 'item' : 'items');
     if (count) count.textContent = `${visible} ${noun}`;
     const empty = root.querySelector<HTMLElement>('[data-catalog-empty]');
     if (empty) empty.hidden = visible > 0;

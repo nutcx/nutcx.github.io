@@ -14,7 +14,7 @@ const heroes = await loadHeroes();
       <div class="hero-grid">
         {heroes.map(hero => <a class="hero-card" href={`/heroes/${hero.id}/`} data-catalog-card data-search={`${hero.name} ${hero.id}`}>
           {hero.image ? <HeroPortrait src={hero.image} size={72} /> : <span class="hero-placeholder">{hero.name[0]}</span>}
-          <div><h2>{hero.name}</h2><p>{hero.items.length} skin options</p><small>Hero #{hero.id}</small></div><span aria-hidden="true">↗</span>
+          <div><h2>{hero.name}</h2><p>{hero.items.filter(item => item.filter === 'original').length} original skins</p><small>Hero #{hero.id}</small></div><span aria-hidden="true">↗</span>
         </a>)}
       </div>
       <div class="catalog-empty" data-catalog-empty hidden><h2>No heroes found</h2><p>Try another name or hero ID.</p><button class="button button--secondary" data-catalog-reset>Clear search</button></div>
