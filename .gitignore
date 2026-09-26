@@ -13,6 +13,7 @@ dist/
 # Tooling and editor state
 *.log
 pnpm-debug.log*
+.work/
 .idea/
 .vscode/*
 !.vscode/extensions.json

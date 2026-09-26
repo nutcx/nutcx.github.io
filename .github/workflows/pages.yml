@@ -33,6 +33,12 @@ jobs:
       - name: Validate item previews and association
         run: pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs && node scripts/test-analytics.mjs && node scripts/test-search-readiness.mjs && node scripts/test-catalog-browsing.mjs
 
+      - name: Validate signed public content delivery
+        run: |
+          pnpm test:content-delivery
+          node scripts/validate-public-content-manifest.mjs public/content \
+            --public-key "nutcx-content-2026-01=MCowBQYDK2VwAyEA/nqv5THRQyePGH/ARBmY+hzQygbVq34lhQXzf/YmYpk="
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
