@@ -1,0 +1,20 @@
+{
+  "heroes.json": {"heroes": [{"heroId": 1, "skins": [
+    {"category": 0, "skinId": 1011, "name": "Base", "type": "Backup", "portrait": "base.webp", "landscape": "", "timestamp": 1727371147739,
+     "source": {"backupArchive": "https://example.test/base.zip", "upgrades": [
+       {"targetCategory": 0, "targetSkinId": 1012, "archive": "https://example.test/default-target.zip"},
+       {"targetCategory": 1, "targetSkinId": 1012, "archive": "https://example.test/custom.zip"}
+     ]}},
+    {"category": 0, "skinId": 1012, "name": "Étoile 星", "type": "Epic", "portrait": "star.webp", "landscape": "wide.webp", "timestamp": 2,
+     "source": {"backupArchive": "https://example.test/star-backup.zip", "upgrades": [
+       {"targetCategory": 1, "targetSkinId": 1012, "archive": "https://example.test/star-custom.zip"}
+     ]}},
+    {"category": 1, "skinId": 1012, "name": "Custom", "type": "", "portrait": "", "landscape": "", "timestamp": 0, "source": null},
+    {"category": 2, "skinId": 1012, "name": "Other category", "type": "", "portrait": "", "landscape": "", "timestamp": 0, "source": null}
+  ]}]},
+  "skin-tags.json": {"tags": [{"name": "Epic", "image": "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/tag.webp"}]},
+  "preparations.json": {"preparations": [{"preparationId": 23, "name": "Classic", "image": "prep.webp", "archive": "https://example.test/prep-backup.zip", "items": [
+    {"name": "Étoile 星", "image": "effect.webp", "archive": "https://example.test/effect.zip"},
+    {"name": "Unavailable", "image": "", "archive": ""}
+  ]}]}
+}

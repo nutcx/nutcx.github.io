@@ -1,0 +1,39 @@
+{
+  "preparationSchemaVersion": 4,
+  "types": [
+    {
+      "key": "effects.recall",
+      "name": "Recall",
+      "items": [
+        {
+          "category": 0, "id": 0, "name": "Classic", "image": "https://example.test/classic.webp",
+          "source": {"backupArchive": "https://example.test/backup.zip", "upgrades": [
+            {"targetCategory": 0, "targetId": 1, "archive": "https://example.test/official.zip"},
+            {"targetCategory": 1, "targetId": 1, "archive": "https://example.test/custom.zip"},
+            {"targetCategory": 1, "targetId": 1, "archive": "https://example.test/variant.zip", "name": "Étoile 星 🦊", "image": "https://example.test/variant.webp"},
+            {"targetCategory": 1, "targetId": 1, "archive": "", "name": "Unavailable variant", "image": ""}
+          ]}
+        },
+        {"category": 0, "id": 1, "name": "Official", "image": "https://example.test/official.webp", "source": null},
+        {
+          "category": 1, "id": 1, "name": "Custom", "image": "https://example.test/custom.webp",
+          "source": {"backupArchive": "", "upgrades": [
+            {"targetCategory": 1, "targetId": 1, "archive": "https://example.test/self-variant.zip", "name": "Self variant"}
+          ]}
+        },
+        {"category": 0, "id": 9, "name": "Catalog only", "image": "", "source": null}
+      ]
+    },
+    {
+      "key": "effects.trail", "name": "Trail",
+      "items": [{"category": 0, "id": 0, "name": "Default", "image": "", "source": {"backupArchive": "", "upgrades": []}}]
+    },
+    {
+      "key": "effects.future", "name": "Future Effects",
+      "items": [
+        {"category": 0, "id": 0, "name": "Default", "image": "", "source": {"backupArchive": "", "upgrades": [{"targetCategory": 0, "targetId": 1, "archive": ""}]}},
+        {"category": 0, "id": 1, "name": "Future target", "image": "", "source": null}
+      ]
+    }
+  ]
+}

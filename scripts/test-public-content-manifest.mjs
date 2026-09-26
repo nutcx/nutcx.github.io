@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   createHash,
+  createDecipheriv,
   generateKeyPairSync,
   sign as signEd25519,
 } from "node:crypto";
@@ -11,6 +12,7 @@ import {
   mkdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -24,6 +26,7 @@ import {
   validatePublicContentDelivery,
   validatePublicContentTransition,
 } from "./public-content-manifest.mjs";
+import { LEGACY_NAMES, projectLegacyContent } from "./legacy-content.mjs";
 
 const KEY_ID = "fixture-content-key";
 const CONTENT_VERSION = "1001.6";
@@ -32,6 +35,77 @@ const BUNDLE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x59, 0x54, 0x45, 0x53, 0]);
 const MANIFEST_DOMAIN = Buffer.from("MLBYTES-MANIFEST-V1", "ascii");
 const BUNDLE_DOMAIN = Buffer.from("MLBYTES-SIGNATURE-V1", "ascii");
 const validatorPath = fileURLToPath(new URL("./validate-public-content-manifest.mjs", import.meta.url));
+const legacyFixtureRoot = fileURLToPath(new URL("./fixtures/legacy-export/", import.meta.url));
+
+async function legacyFixtureDocuments() {
+  return JSON.parse(await readFile(join(legacyFixtureRoot, "document.json"), "utf8"));
+}
+
+function exactNumericFixture(value) {
+  return JSON.parse(JSON.stringify(value), (_key, entry) => typeof entry === "number" ? BigInt(entry) : entry);
+}
+
+function entriesForDocuments(documents) {
+  return new Map(Object.entries(documents).map(([name, value]) => [
+    name, Buffer.from(JSON.stringify(value), "utf8"),
+  ]));
+}
+
+async function writeLegacyFixture(root, documents) {
+  const directory = join(root, "legacy");
+  await mkdir(directory, { recursive: true });
+  const files = projectLegacyContent(exactNumericFixture(documents["heroes.json"]),
+    exactNumericFixture(documents["skin-tags.json"]), exactNumericFixture(documents["preparations.json"]));
+  for (const [name, bytes] of files) await writeFile(join(directory, name), bytes);
+}
+
+async function withLegacyFixture(run) {
+  const documents = await legacyFixtureDocuments();
+  await withFixture(async (item) => {
+    await writeLegacyFixture(item.root, documents);
+    await run({ ...item, documents });
+  }, { documentOptions: { entries: entriesForDocuments(documents) } });
+}
+
+function decodePreparationRows(bytes) {
+  const key = Buffer.from("zonghub_gfx_2024", "ascii");
+  const cipher = createDecipheriv("aes-128-cbc", key, key);
+  const raw = Buffer.concat([cipher.update(bytes), cipher.final()]);
+  let cursor = 0;
+  const integer = () => { const value = raw.readInt32LE(cursor); cursor += 4; return value; };
+  const text = () => {
+    let length = 0;
+    let shift = 0;
+    while (true) {
+      const byte = raw[cursor++];
+      assert.notEqual(byte, undefined);
+      length += (byte & 127) * (2 ** shift);
+      if ((byte & 128) === 0) break;
+      shift += 7;
+      assert.ok(shift <= 28);
+    }
+    assert.ok(cursor + length <= raw.length);
+    const value = raw.subarray(cursor, cursor + length).toString("utf8");
+    cursor += length;
+    return value;
+  };
+  const count = integer();
+  const result = [];
+  for (let index = 0; index < count; index += 1) {
+    const row = { id: integer(), type: integer(), name: text(), image: text(), archive: text(), items: [] };
+    const childCount = integer();
+    for (let child = 0; child < childCount; child += 1) {
+      row.items.push({ name: text(), tag: integer(), image: text(), archive: text() });
+    }
+    result.push(row);
+  }
+  assert.equal(cursor, raw.length, "legacy preparation rows must consume all decrypted bytes");
+  return result;
+}
+
+function preparationBytes(document) {
+  return projectLegacyContent({ heroes: [] }, { tags: [] }, exactNumericFixture(document)).get(LEGACY_NAMES[4]);
+}
 
 function signatureBlock(domain, payloadBytes, privateKey, keyId = KEY_ID) {
   const keyIdBytes = Buffer.from(keyId, "utf8");
@@ -357,6 +431,299 @@ test("rejects unsafe, mutable, and version-mismatched content paths", async () =
       );
     }
   });
+});
+
+test("legacy projection exactly matches the independent historical Java/Python fixtures", async () => {
+  const documents = await legacyFixtureDocuments();
+  const files = projectLegacyContent(exactNumericFixture(documents["heroes.json"]),
+    exactNumericFixture(documents["skin-tags.json"]), exactNumericFixture(documents["preparations.json"]));
+  assert.equal(files.size, 5);
+  for (const [name, bytes] of files) {
+    assert.deepEqual(bytes, await readFile(join(legacyFixtureRoot, name)), name);
+  }
+});
+
+test("accepts exactly five legacy files without changing the signed manifest schema", async () => {
+  await withLegacyFixture(async ({ root, publicKey, manifest }) => {
+    assert.deepEqual(Object.keys(manifest), ["schemaVersion", "publicationSequence", "channel",
+      "publishedAt", "content", "client"]);
+    const result = await validatePublicContentDelivery(root, { publicKeys: { [KEY_ID]: publicKey } });
+    assert.equal(result.legacyFileCount, 5);
+    const unchanged = await validatePublicContentTransition(root, root, {
+      publicKeys: { [KEY_ID]: publicKey },
+    });
+    assert.equal(unchanged.manifestChanged, false);
+  });
+});
+
+test("permits the first legacy publication and retains companions for settings-only updates", async () => {
+  const documents = await legacyFixtureDocuments();
+  await withFixture(async (oldTree) => {
+    const newRoot = await mkdtemp(join(tmpdir(), "nutcx-legacy-add-"));
+    try {
+      await cp(oldTree.root, newRoot, { recursive: true });
+      await writeLegacyFixture(newRoot, documents);
+      const initial = await validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      });
+      assert.equal(initial.legacyFileCount, 5);
+      assert.equal(initial.manifestChanged, false);
+
+      const updated = structuredClone(oldTree.manifest);
+      updated.publicationSequence += 1;
+      updated.client.features["example.enabled"] = true;
+      await writeSignedManifest(newRoot, updated, oldTree.privateKey);
+      const settings = await validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      });
+      assert.equal(settings.manifestChanged, true);
+      assert.equal(settings.legacyFileCount, 5);
+    } finally {
+      await rm(newRoot, { recursive: true, force: true });
+    }
+  }, { documentOptions: { entries: entriesForDocuments(documents) } });
+});
+
+test("rejects stale companions after a new signed content release, then accepts their refresh", async () => {
+  await withLegacyFixture(async (oldTree) => {
+    const newRoot = await mkdtemp(join(tmpdir(), "nutcx-legacy-refresh-"));
+    try {
+      await cp(oldTree.root, newRoot, { recursive: true });
+      const documents = structuredClone(oldTree.documents);
+      documents["heroes.json"].heroes[0].skins[0].name = "Updated source";
+      const bytes = signedDocument({ privateKey: oldTree.privateKey, version: "1001.7",
+        entries: entriesForDocuments(documents) });
+      const target = join(newRoot, "versions", "1001.7", "Document.mlbytes");
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, bytes);
+      await writeSignedManifest(newRoot,
+        manifestFor(bytes, { version: "1001.7", publicationSequence: 8 }), oldTree.privateKey);
+      await assert.rejects(validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      }), /does not match the verified current Document/);
+      await writeLegacyFixture(newRoot, documents);
+      const result = await validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      });
+      assert.equal(result.contentVersion, "1001.7");
+      assert.equal(result.legacyFileCount, 5);
+    } finally {
+      await rm(newRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test("rejects tampering in every generated legacy file", async () => {
+  for (const name of LEGACY_NAMES) {
+    await withLegacyFixture(async ({ root, publicKey }) => {
+      const path = join(root, "legacy", name);
+      const bytes = await readFile(path);
+      bytes[0] ^= 1;
+      await writeFile(path, bytes);
+      await assert.rejects(validatePublicContentDelivery(root, {
+        publicKeys: { [KEY_ID]: publicKey },
+      }), /does not match the verified current Document/);
+    });
+  }
+});
+
+test("rejects partial legacy directories, extra files, wrong entry kinds, and oversized files", async () => {
+  for (const mutate of [
+    (root) => rm(join(root, "legacy", LEGACY_NAMES[0])),
+    (root) => writeFile(join(root, "legacy", "heroes.json"), "{}"),
+    async (root) => {
+      const path = join(root, "legacy", LEGACY_NAMES[0]);
+      await rm(path);
+      await mkdir(path);
+    },
+    async (root) => {
+      await rm(join(root, "legacy"), { recursive: true });
+      await writeFile(join(root, "legacy"), "not a directory");
+    },
+    (root) => writeFile(join(root, "legacy", LEGACY_NAMES[0]), Buffer.alloc(8 * 1024 * 1024 + 17)),
+  ]) {
+    await withLegacyFixture(async ({ root, publicKey }) => {
+      await mutate(root);
+      await assert.rejects(validatePublicContentDelivery(root, {
+        publicKeys: { [KEY_ID]: publicKey },
+      }), /allowlist|non-symlink|file-size limit|invalid size/);
+    });
+  }
+});
+
+test("rejects a symlinked legacy directory", async () => {
+  await withLegacyFixture(async ({ root, publicKey }) => {
+    const targetRoot = await mkdtemp(join(tmpdir(), "nutcx-legacy-target-"));
+    try {
+      await cp(join(root, "legacy"), targetRoot, { recursive: true });
+      await rm(join(root, "legacy"), { recursive: true });
+      await symlink(targetRoot, join(root, "legacy"), process.platform === "win32" ? "junction" : "dir");
+      await assert.rejects(validatePublicContentDelivery(root, {
+        publicKeys: { [KEY_ID]: publicKey },
+      }), /non-symlink directory/);
+    } finally {
+      await rm(join(root, "legacy"), { recursive: true, force: true });
+      await rm(targetRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test("does not permit removing an already-published legacy directory", async () => {
+  await withLegacyFixture(async (oldTree) => {
+    const newRoot = await mkdtemp(join(tmpdir(), "nutcx-legacy-remove-"));
+    try {
+      await cp(oldTree.root, newRoot, { recursive: true });
+      await rm(join(newRoot, "legacy"), { recursive: true });
+      await assert.rejects(validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      }), /legacy directory may not be removed/);
+    } finally {
+      await rm(newRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test("preserves signed-64 timestamps exactly when checking legacy bytes", async () => {
+  await withLegacyFixture(async (item) => {
+    const entries = entriesForDocuments(item.documents);
+    entries.set("heroes.json", Buffer.from(entries.get("heroes.json").toString("utf8")
+      .replace('"timestamp":1727371147739', '"timestamp":9223372036854775807')));
+    await replaceDocument(item, signedDocument({ privateKey: item.privateKey, entries }));
+    const heroes = exactNumericFixture(item.documents["heroes.json"]);
+    heroes.heroes[0].skins[0].timestamp = 9_223_372_036_854_775_807n;
+    const files = projectLegacyContent(heroes, exactNumericFixture(item.documents["skin-tags.json"]),
+      exactNumericFixture(item.documents["preparations.json"]));
+    for (const [name, bytes] of files) await writeFile(join(item.root, "legacy", name), bytes);
+    const result = await validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    });
+    assert.equal(result.legacyFileCount, 5);
+  });
+});
+
+test("fails closed on duplicate JSON keys, invalid numbers, Unicode, and unresolved legacy joins", async () => {
+  for (const mutate of [
+    (raw) => raw.replace('"heroId":1', '"heroId":1,"heroId":1'),
+    (raw) => raw.replace('"heroId":1', '"heroId":2147483648'),
+    (raw) => raw.replace('"timestamp":2', '"timestamp":2.5'),
+    (raw) => raw.replace('"timestamp":2', '"timestamp":9223372036854775808'),
+    (raw) => raw.replace('"name":"Base"', '"name":"\\ud800"'),
+    (raw) => raw.replace('"targetSkinId":1012', '"targetSkinId":9999'),
+  ]) {
+    await withLegacyFixture(async (item) => {
+      const entries = entriesForDocuments(item.documents);
+      entries.set("heroes.json", Buffer.from(mutate(entries.get("heroes.json").toString("utf8"))));
+      await replaceDocument(item, signedDocument({ privateKey: item.privateKey, entries }));
+      await assert.rejects(validatePublicContentDelivery(item.root, {
+        publicKeys: { [KEY_ID]: item.publicKey },
+      }), /duplicate key|Legacy projection/);
+    });
+  }
+});
+
+test("projects modern preparation sources and variants without inventing catalog-only groups", async () => {
+  const document = {
+    preparationSchemaVersion: 4,
+    types: [{ key: "effects.recall", name: "Recall", items: [
+      { category: 0, id: 0, name: "Classic", image: "classic.webp", source: {
+        backupArchive: "", upgrades: [
+          { targetCategory: 0, targetId: 101, archive: "one.zip" },
+          { targetCategory: 0, targetId: 101, name: "Variant", image: "variant.webp", archive: "" },
+          { targetCategory: 1, targetId: 101, archive: "custom.zip" },
+        ],
+      } },
+      { category: 0, id: 101, name: "Official", image: "official.webp", source: null },
+      { category: 1, id: 101, name: "Custom", image: "custom.webp", source: {
+        backupArchive: "custom-backup.zip", upgrades: [
+          { targetCategory: 1, targetId: 101, archive: "self.zip" },
+        ],
+      } },
+    ] }, { key: "effects.trail", name: "Trail", items: [
+      { category: 0, id: 0, name: "Classic", image: "trail.webp", source: { backupArchive: "", upgrades: [] } },
+    ] }],
+  };
+  const rows = decodePreparationRows(preparationBytes(document));
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows.map((row) => row.id)).size, 3);
+  assert.equal(rows[0].type, 1);
+  assert.equal(rows[2].type, 5);
+  assert.equal(rows[0].archive, "");
+  assert.deepEqual(rows[0].items, [
+    { name: "Official", tag: -1, image: "official.webp", archive: "one.zip" },
+    { name: "Variant", tag: -1, image: "variant.webp", archive: "" },
+    { name: "Custom", tag: -1, image: "custom.webp", archive: "custom.zip" },
+  ]);
+  assert.deepEqual(rows[1].items, [{ name: "Custom", tag: -1, image: "custom.webp", archive: "self.zip" }]);
+  document.types[0].name = "Renamed type display";
+  document.types[0].items[0].name = "Renamed source";
+  document.types.reverse();
+  const reordered = decodePreparationRows(preparationBytes(document));
+  assert.equal(reordered[0].id, rows[2].id);
+  assert.equal(reordered[1].id, rows[0].id);
+  assert.equal(reordered[2].id, rows[1].id);
+});
+
+test("uses the original preparation type enum and leaves unknown types and child tags unknown", () => {
+  const keys = ["battle-emote", "recall", "spawn", "elimination", "notification", "trail", "radiant-kits", "future"];
+  const document = { preparationSchemaVersion: 4, types: keys.map((key) => ({
+    key: `effects.${key}`, name: key, items: [{ category: 0, id: 0, name: "Classic", image: "", source: {
+      backupArchive: "", upgrades: [{ targetCategory: 0, targetId: 0, archive: "" }],
+    } }],
+  })) };
+  const rows = decodePreparationRows(preparationBytes(document));
+  assert.deepEqual(rows.map((row) => row.type), [0, 1, 2, 3, 4, 5, -1, -1]);
+  assert.equal(new Set(rows.map((row) => row.id)).size, keys.length);
+  assert.ok(rows.every((row) => row.items[0].tag === -1));
+});
+
+test("rejects unresolved preparation targets and duplicate identities instead of dropping rows", () => {
+  const document = { preparationSchemaVersion: 4, types: [{ key: "effects.recall", items: [
+    { category: 0, id: 0, name: "Classic", image: "", source: { backupArchive: "", upgrades: [
+      { targetCategory: 1, targetId: 0, archive: "" },
+    ] } },
+  ] }] };
+  assert.throws(() => preparationBytes(document), /missing preparation route target/);
+  document.types[0].items[0].source.upgrades = [];
+  document.types[0].items.push(structuredClone(document.types[0].items[0]));
+  assert.throws(() => preparationBytes(document), /duplicate preparation effect/);
+});
+
+test("matches the Dart schema-4 preparation fixture and validates it against the signed Document", async () => {
+  const documents = await legacyFixtureDocuments();
+  documents["preparations.json"] = JSON.parse(await readFile(new URL(
+    "./fixtures/legacy-preparation-export/preparations.json", import.meta.url), "utf8"));
+  const bytes = preparationBytes(documents["preparations.json"]);
+  assert.equal(bytes.length, 576);
+  assert.equal(createHash("sha256").update(bytes).digest("hex"),
+    "ce5209079a34b8b18d9452becb68e1820cd003632b3dcfce1ed8e183a08de3ab");
+  const rows = decodePreparationRows(bytes);
+  assert.equal(rows.length, 4);
+  assert.equal(rows.reduce((total, row) => total + row.items.length, 0), 6);
+  assert.equal(rows[0].id, 1_466_205_851);
+
+  await withFixture(async (item) => {
+    await writeLegacyFixture(item.root, documents);
+    assert.equal((await validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    })).legacyFileCount, 5);
+    documents["preparations.json"].types[0].items[0].source.upgrades[0].archive = "changed.zip";
+    await replaceDocument(item, signedDocument({ privateKey: item.privateKey,
+      entries: entriesForDocuments(documents) }));
+    await assert.rejects(validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    }), /legacy\/819204176.mlbytes does not match the verified current Document/);
+    await writeLegacyFixture(item.root, documents);
+    await validatePublicContentDelivery(item.root, { publicKeys: { [KEY_ID]: item.publicKey } });
+  }, { documentOptions: { entries: entriesForDocuments(documents) } });
+});
+
+test("fails closed on a real preparation alias hash collision", () => {
+  const document = { preparationSchemaVersion: 4, types: [{ key: "effects.recall", items:
+    [509, 12123].map((id) => ({ category: 0, id, name: `Effect ${id}`, image: "", source: {
+      backupArchive: "", upgrades: [],
+    } })),
+  }] };
+  assert.throws(() => preparationBytes(document), /preparation ID collision/);
 });
 
 test("checks the referenced file size and SHA-256", async () => {

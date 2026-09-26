@@ -8,10 +8,16 @@ import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { TextDecoder } from "node:util";
 import { inflateSync } from "node:zlib";
+import {
+  LEGACY_NAMES,
+  projectLegacyContent,
+} from "./legacy-content.mjs";
 
 const MANIFEST_NAME = "manifest.json";
 const SIGNATURE_NAME = "manifest.sig";
 const VERSIONS_NAME = "versions";
+const LEGACY_NAME = "legacy";
+const MAX_LEGACY_BYTES = 8 * 1024 * 1024 + 16;
 const MANIFEST_DOMAIN = Buffer.from("MLBYTES-MANIFEST-V1", "ascii");
 const BUNDLE_DOMAIN = Buffer.from("MLBYTES-SIGNATURE-V1", "ascii");
 const SIGNATURE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x53, 0x49, 0x47, 0, 0]);
@@ -96,7 +102,11 @@ function fail(message, options) {
   throw new PublicContentManifestError(message, options);
 }
 
-function strictJsonParse(text) {
+function strictJsonParse(text, {
+  label = MANIFEST_NAME,
+  maxValues = MAX_JSON_VALUES,
+  numberParser = (source) => new JsonNumber(source),
+} = {}) {
   let index = 0;
   let values = 0;
 
@@ -106,8 +116,8 @@ function strictJsonParse(text) {
 
   function countValue(depth) {
     values += 1;
-    if (values > MAX_JSON_VALUES) fail("manifest.json contains too many JSON values");
-    if (depth > MAX_JSON_DEPTH) fail("manifest.json exceeds the JSON nesting limit");
+    if (values > maxValues) fail(`${label} contains too many JSON values`);
+    if (depth > MAX_JSON_DEPTH) fail(`${label} exceeds the JSON nesting limit`);
   }
 
   function parseString() {
@@ -120,26 +130,26 @@ function strictJsonParse(text) {
         try {
           return JSON.parse(text.slice(start, index));
         } catch (error) {
-          fail("manifest.json contains an invalid JSON string", { cause: error });
+          fail(`${label} contains an invalid JSON string`, { cause: error });
         }
       }
-      if (code < 0x20) fail("manifest.json contains an unescaped control character");
+      if (code < 0x20) fail(`${label} contains an unescaped control character`);
       if (code === 0x5c) {
         index += 1;
         if (index >= text.length || !/["\\/bfnrtu]/.test(text[index])) {
-          fail("manifest.json contains an invalid JSON escape");
+          fail(`${label} contains an invalid JSON escape`);
         }
         if (text[index] === "u") {
           const digits = text.slice(index + 1, index + 5);
           if (!/^[0-9a-fA-F]{4}$/.test(digits)) {
-            fail("manifest.json contains an invalid Unicode escape");
+            fail(`${label} contains an invalid Unicode escape`);
           }
           index += 4;
         }
       }
       index += 1;
     }
-    fail("manifest.json contains an unterminated JSON string");
+    fail(`${label} contains an unterminated JSON string`);
   }
 
   function parseNumber() {
@@ -147,23 +157,23 @@ function strictJsonParse(text) {
     if (text[index] === "-") index += 1;
     if (text[index] === "0") {
       index += 1;
-      if (/[0-9]/.test(text[index] ?? "")) fail("manifest.json contains a non-canonical JSON number");
+      if (/[0-9]/.test(text[index] ?? "")) fail(`${label} contains a non-canonical JSON number`);
     } else {
-      if (!/[1-9]/.test(text[index] ?? "")) fail("manifest.json contains an invalid JSON number");
+      if (!/[1-9]/.test(text[index] ?? "")) fail(`${label} contains an invalid JSON number`);
       while (/[0-9]/.test(text[index] ?? "")) index += 1;
     }
     if (text[index] === ".") {
       index += 1;
-      if (!/[0-9]/.test(text[index] ?? "")) fail("manifest.json contains an invalid JSON number");
+      if (!/[0-9]/.test(text[index] ?? "")) fail(`${label} contains an invalid JSON number`);
       while (/[0-9]/.test(text[index] ?? "")) index += 1;
     }
     if (text[index] === "e" || text[index] === "E") {
       index += 1;
       if (text[index] === "+" || text[index] === "-") index += 1;
-      if (!/[0-9]/.test(text[index] ?? "")) fail("manifest.json contains an invalid JSON number");
+      if (!/[0-9]/.test(text[index] ?? "")) fail(`${label} contains an invalid JSON number`);
       while (/[0-9]/.test(text[index] ?? "")) index += 1;
     }
-    return new JsonNumber(text.slice(start, index));
+    return numberParser(text.slice(start, index));
   }
 
   function parseArray(depth) {
@@ -181,7 +191,7 @@ function strictJsonParse(text) {
         index += 1;
         return result;
       }
-      if (text[index] !== ",") fail("manifest.json contains an invalid JSON array");
+      if (text[index] !== ",") fail(`${label} contains an invalid JSON array`);
       index += 1;
       skipWhitespace();
     }
@@ -196,11 +206,11 @@ function strictJsonParse(text) {
       return result;
     }
     while (true) {
-      if (text[index] !== "\"") fail("manifest.json object keys must be strings");
+      if (text[index] !== "\"") fail(`${label} object keys must be strings`);
       const key = parseString();
-      if (Object.hasOwn(result, key)) fail(`manifest.json contains duplicate key '${key}'`);
+      if (Object.hasOwn(result, key)) fail(`${label} contains duplicate key '${key}'`);
       skipWhitespace();
-      if (text[index] !== ":") fail("manifest.json contains an invalid JSON object");
+      if (text[index] !== ":") fail(`${label} contains an invalid JSON object`);
       index += 1;
       result[key] = parseValue(depth + 1);
       skipWhitespace();
@@ -208,7 +218,7 @@ function strictJsonParse(text) {
         index += 1;
         return result;
       }
-      if (text[index] !== ",") fail("manifest.json contains an invalid JSON object");
+      if (text[index] !== ",") fail(`${label} contains an invalid JSON object`);
       index += 1;
       skipWhitespace();
     }
@@ -228,12 +238,12 @@ function strictJsonParse(text) {
         return value;
       }
     }
-    fail("manifest.json contains an invalid JSON value");
+    fail(`${label} contains an invalid JSON value`);
   }
 
   const result = parseValue(0);
   skipWhitespace();
-  if (index !== text.length) fail("manifest.json contains trailing JSON data");
+  if (index !== text.length) fail(`${label} contains trailing JSON data`);
   return result;
 }
 
@@ -648,7 +658,22 @@ function isCanonicalVersionDirectory(name) {
 
 async function inspectAllowlistedTree(rootRealPath) {
   const rootEntries = await readdir(rootRealPath, { withFileTypes: true });
-  exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME], "public content root");
+  const legacyPresent = rootEntries.some((entry) => entry.name === LEGACY_NAME);
+  exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME,
+    ...(legacyPresent ? [LEGACY_NAME] : [])], "public content root");
+
+  const legacyFiles = new Map();
+  if (legacyPresent) {
+    const legacyPath = resolve(rootRealPath, LEGACY_NAME);
+    await regularDirectory(legacyPath, LEGACY_NAME);
+    const children = await readdir(legacyPath, { withFileTypes: true });
+    exactDirectoryEntries(children, LEGACY_NAMES, LEGACY_NAME);
+    for (const name of LEGACY_NAMES) {
+      const path = resolve(legacyPath, name);
+      await regularFile(path, `${LEGACY_NAME}/${name}`, MAX_LEGACY_BYTES);
+      legacyFiles.set(name, path);
+    }
+  }
 
   await regularFile(resolve(rootRealPath, MANIFEST_NAME), MANIFEST_NAME, MAX_MANIFEST_BYTES);
   await regularFile(
@@ -677,7 +702,7 @@ async function inspectAllowlistedTree(rootRealPath) {
     await regularFile(absolutePath, contentPath, MAX_CONTENT_BYTES);
     versionFiles.set(contentPath, absolutePath);
   }
-  return versionFiles;
+  return { versionFiles, legacyFiles };
 }
 
 async function hashFile(path, label) {
@@ -880,6 +905,7 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
   }
 
   const payloadStart = Number(payloadOffset);
+  const entries = new Map();
   for (const record of records) {
     const storedStart = payloadStart + record.relativeOffset;
     const storedEnd = storedStart + record.storedSize;
@@ -910,13 +936,53 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
     if (!actualSha256.equals(record.expectedSha256)) {
       fail(`Document.mlbytes entry '${record.path}' has a SHA-256 mismatch`);
     }
+    entries.set(record.path, raw);
   }
   return Object.freeze({
     contentVersion,
     schemaVersion,
     minimumAppVersionCode,
     signatureKeyId: signature.keyId,
+    entries,
   });
+}
+
+function projectVerifiedLegacy(entries) {
+  const parsed = new Map();
+  for (const name of REQUIRED_DOCUMENT_ENTRIES) {
+    const bytes = entries.get(name);
+    parsed.set(name, strictJsonParse(decodeUtf8(bytes, name), {
+      label: name,
+      maxValues: 1_000_000,
+      numberParser: (source) => {
+        if (source.length > 19 || !/^(?:0|[1-9][0-9]*)$/.test(source)) {
+          fail(`Legacy projection: ${name} contains a nonnegative-integer violation`);
+        }
+        return BigInt(source);
+      },
+    }));
+  }
+  try {
+    return projectLegacyContent(parsed.get("heroes.json"), parsed.get("skin-tags.json"),
+      parsed.get("preparations.json"));
+  } catch (error) {
+    fail(error.message, { cause: error });
+  }
+}
+
+async function validateLegacyFiles(legacyFiles, entries) {
+  if (legacyFiles.size === 0) return;
+  const generated = projectVerifiedLegacy(entries);
+  for (const [name, path] of legacyFiles) {
+    const details = await regularFile(path, `legacy/${name}`, MAX_LEGACY_BYTES);
+    const bytes = await readFile(path);
+    if (bytes.length !== details.size || bytes.length > MAX_LEGACY_BYTES) {
+      fail(`legacy/${name} changed while it was being validated`);
+    }
+    if (!bytes.equals(generated.get(name))) {
+      fail(`legacy/${name} does not match the verified current Document.mlbytes`);
+    }
+  }
 }
 
 async function validateDeliveryInternal(rootDirectory, publicKeys) {
@@ -931,7 +997,7 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     fail("public content delivery root must be a non-symlink directory");
   }
   const rootRealPath = await realpath(requestedRoot);
-  const allowlistedVersionFiles = await inspectAllowlistedTree(rootRealPath);
+  const allowlisted = await inspectAllowlistedTree(rootRealPath);
   const manifestPath = resolve(rootRealPath, MANIFEST_NAME);
   const signaturePath = resolve(rootRealPath, SIGNATURE_NAME);
 
@@ -963,7 +1029,7 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     fail("manifest.json is not valid UTF-8", { cause: error });
   }
   const metadata = validateManifestModel(strictJsonParse(manifestText));
-  const versionFiles = await hashVersionFiles(allowlistedVersionFiles);
+  const versionFiles = await hashVersionFiles(allowlisted.versionFiles);
   const referenced = versionFiles.get(metadata.path);
   if (!referenced) fail(`referenced content file is missing: ${metadata.path}`);
   if (referenced.sizeBytes !== metadata.sizeBytes) {
@@ -978,6 +1044,7 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     fail("referenced content changed while its signed bundle was being validated");
   }
   const document = verifySignedDocument(documentBytes, metadata.version, publicKeys);
+  await validateLegacyFiles(allowlisted.legacyFiles, document.entries);
   const summary = Object.freeze({
     publicationSequence: metadata.publicationSequence.toString(),
     contentVersion: metadata.version,
@@ -987,8 +1054,9 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     signatureKeyId: signature.keyId,
     documentSignatureKeyId: document.signatureKeyId,
     minimumAppVersionCode: document.minimumAppVersionCode,
+    legacyFileCount: allowlisted.legacyFiles.size,
   });
-  return { manifestBytes, metadata, versionFiles, summary };
+  return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0, summary };
 }
 
 /**
@@ -1032,6 +1100,9 @@ export async function validatePublicContentTransition(
   ]);
 
   const manifestChanged = !previous.manifestBytes.equals(current.manifestBytes);
+  if (previous.legacyPresent && !current.legacyPresent) {
+    fail("the published legacy directory may not be removed");
+  }
   if (manifestChanged) {
     if (current.metadata.publicationSequence <= previous.metadata.publicationSequence) {
       fail("a changed manifest requires a strictly increasing publicationSequence");

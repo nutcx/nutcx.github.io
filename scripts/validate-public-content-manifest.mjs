@@ -73,7 +73,8 @@ try {
   console.log(
     `Public content delivery is valid: ${result.contentVersion}, `
       + `${result.contentSizeBytes} bytes, sequence ${result.publicationSequence}, `
-      + `manifest key ${result.signatureKeyId}, document key ${result.documentSignatureKeyId}.`
+      + `manifest key ${result.signatureKeyId}, document key ${result.documentSignatureKeyId}, `
+      + `${result.legacyFileCount} legacy files.`
       + (options.previousRoot
         ? ` Transition from sequence ${result.previousPublicationSequence} is valid.`
         : ""),
