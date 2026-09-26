@@ -30,6 +30,11 @@ be exactly `versions/<version>/Document.mlbytes`. SHA-256 is 64 lowercase hexade
 the declared size is 1 through 41,943,040 bytes. Publishing a new manifest must never replace an
 existing version path with different bytes.
 
+No other public content files are permitted. The root allowlist is exactly `manifest.json`,
+`manifest.sig`, and `versions/`; each canonical version directory contains exactly one regular,
+non-symlink `Document.mlbytes` file. Raw JSON databases, temporary files, sidecars, and nested assets
+make validation fail.
+
 `client.policy` embeds the existing ClientPolicy schema without additions or omissions. It includes
 the policy ID/revision, mode, presentation fields, application-version fields, active window, and
 optional HTTPS actions. Mode-specific constraints still apply: for example, `NORMAL` has no
@@ -50,6 +55,11 @@ keys are 1-64 publication-safe ASCII characters and may not contain `..`.
 The Android client verifies this detached signature before parsing JSON. Host validation likewise
 requires a trusted public key whose key ID matches the signature block.
 
+The host validator also verifies the embedded MLBSIG signature on the referenced `Document.mlbytes`
+before parsing its directory. It then enforces MLBytes format 1.0, schema 3, the exact manifest content
+version, minimum app version code 11 or newer, the complete three-entry document profile, bounded
+offsets and sizes, decompression, and each entry's SHA-256 digest.
+
 ## Validation and publication order
 
 Run the self-contained fixture suite:
@@ -62,10 +72,18 @@ Validate staged release files with one or more trusted Ed25519 X.509/SPKI public
 
 ```powershell
 node scripts/validate-public-content-manifest.mjs public/content `
+  --previous-root path/to/previous/public/content `
   --public-key publisher-key-id=BASE64_X509_SPKI_DER
 ```
 
-The validator rejects duplicate or extra JSON fields, unsafe paths, malformed policy/config data,
+The transition validator accepts an unchanged delivery. Any changed manifest must have a strictly
+higher publication sequence. Content versions cannot roll back; a reused content version must retain
+the exact same path, size, and digest. Policy and config revisions cannot roll back, and their meaning
+cannot change without increasing the corresponding revision. Every old version file must remain
+byte-for-byte identical, and the only permitted addition is the version file selected by the new
+manifest. The Pages workflow extracts the pre-push Git tree and applies these checks before deployment.
+
+The validator also rejects duplicate or extra JSON fields, unsafe paths, malformed policy/config data,
 untrusted or invalid signatures, symlinked paths, size mismatches, and SHA-256 mismatches. Fixtures
 are created only in the operating system's temporary directory.
 

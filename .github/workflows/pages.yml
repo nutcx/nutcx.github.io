@@ -22,6 +22,27 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract previous public content baseline
+        shell: bash
+        env:
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="${PUSH_BASE_SHA:-}"
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          if ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$base_sha"
+          fi
+          previous_tree="${RUNNER_TEMP}/nutcx-previous-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$previous_tree"
+          git archive "$base_sha" public/content | tar -xf - -C "$previous_tree"
+          printf 'NUTCX_PREVIOUS_CONTENT_ROOT=%s\n' \
+            "$previous_tree/public/content" >> "$GITHUB_ENV"
 
       - name: Install, build, and upload site
         uses: withastro/action@v6
@@ -37,6 +58,7 @@ jobs:
         run: |
           pnpm test:content-delivery
           node scripts/validate-public-content-manifest.mjs public/content \
+            --previous-root "$NUTCX_PREVIOUS_CONTENT_ROOT" \
             --public-key "nutcx-content-2026-01=MCowBQYDK2VwAyEA/nqv5THRQyePGH/ARBmY+hzQygbVq34lhQXzf/YmYpk="
 
   deploy:

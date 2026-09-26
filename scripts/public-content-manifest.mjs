@@ -4,19 +4,32 @@ import {
   verify as verifyEd25519,
 } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, readFile, realpath, stat } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 import { TextDecoder } from "node:util";
+import { inflateSync } from "node:zlib";
 
 const MANIFEST_NAME = "manifest.json";
 const SIGNATURE_NAME = "manifest.sig";
+const VERSIONS_NAME = "versions";
 const MANIFEST_DOMAIN = Buffer.from("MLBYTES-MANIFEST-V1", "ascii");
+const BUNDLE_DOMAIN = Buffer.from("MLBYTES-SIGNATURE-V1", "ascii");
 const SIGNATURE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x53, 0x49, 0x47, 0, 0]);
+const BUNDLE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x59, 0x54, 0x45, 0x53, 0]);
 const MAX_MANIFEST_BYTES = 64 * 1024;
 const MAX_CONTENT_BYTES = 40 * 1024 * 1024;
+const MAX_DIRECTORY_BYTES = 64 * 1024;
+const MAX_ENTRY_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_ENTRY_BYTES = 32 * 1024 * 1024;
+const MAX_PATH_BYTES = 1024;
+const MAX_VERSION_DIRECTORIES = 4_096;
 const MAX_KEY_ID_BYTES = 128;
 const SIGNATURE_PREFIX_BYTES = 16;
 const ED25519_SIGNATURE_BYTES = 64;
+const BUNDLE_HEADER_BYTES = 80;
+const DIRECTORY_RECORD_BYTES = 64;
+const DOCUMENT_SCHEMA_VERSION = 3;
+const MINIMUM_SUPPORTED_APP_VERSION_CODE = 11;
 const MAX_SIGNED_64 = 9_223_372_036_854_775_807n;
 const MAX_UNSIGNED_32 = 4_294_967_295n;
 const MAX_JSON_DEPTH = 32;
@@ -60,6 +73,11 @@ const CONFIG_FIELDS = [
   "originalResourceRoot",
   "originalCdnRoots",
 ];
+const REQUIRED_DOCUMENT_ENTRIES = Object.freeze([
+  "heroes.json",
+  "preparations.json",
+  "skin-tags.json",
+]);
 
 export class PublicContentManifestError extends Error {
   constructor(message, options) {
@@ -235,6 +253,20 @@ function exactKeys(value, label, expected) {
   }
 }
 
+function semanticFingerprint(value) {
+  if (value instanceof JsonNumber) return `n${value.source.length}:${value.source}`;
+  if (value === null) return "z";
+  if (typeof value === "boolean") return value ? "b1" : "b0";
+  if (typeof value === "string") return `s${value.length}:${value}`;
+  if (Array.isArray(value)) {
+    return `a${value.length}[${value.map(semanticFingerprint).join("")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `o${keys.length}{${keys.map((key) => (
+    `${semanticFingerprint(key)}${semanticFingerprint(value[key])}`
+  )).join("")}}`;
+}
+
 function integer(value, label, minimum, maximum) {
   if (!(value instanceof JsonNumber) || !/^(?:0|[1-9][0-9]*)$/.test(value.source)) {
     fail(`${label} must be a nonnegative integer`);
@@ -309,7 +341,7 @@ function validatePolicy(value) {
   exactKeys(value, label, POLICY_FIELDS);
   if (integer(value.schemaVersion, `${label}.schemaVersion`, 1n, 1n) !== 1n) fail("unreachable");
   validateId(value.policyId, `${label}.policyId`);
-  integer(value.revision, `${label}.revision`, 1n, MAX_UNSIGNED_32);
+  const revision = integer(value.revision, `${label}.revision`, 1n, MAX_UNSIGNED_32);
   const mode = string(value.mode, `${label}.mode`);
   const modes = new Set(["NORMAL", "NOTICE", "TEMPORARILY_UNAVAILABLE", "UPDATE_AVAILABLE", "UPDATE_REQUIRED"]);
   if (!modes.has(mode)) fail(`${label}.mode is unsupported`);
@@ -365,6 +397,7 @@ function validatePolicy(value) {
       fail(`${label}.${mode} has an invalid dismissible value`);
     }
   }
+  return revision;
 }
 
 function normalizedCdnOrigin(value, label) {
@@ -400,7 +433,7 @@ function validateConfig(value) {
   exactKeys(value, label, CONFIG_FIELDS);
   integer(value.schemaVersion, `${label}.schemaVersion`, 1n, 1n);
   validateId(value.configId, `${label}.configId`);
-  integer(value.revision, `${label}.revision`, 1n, MAX_UNSIGNED_32);
+  const revision = integer(value.revision, `${label}.revision`, 1n, MAX_UNSIGNED_32);
   const resourceRoot = string(value.originalResourceRoot, `${label}.originalResourceRoot`);
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(resourceRoot)) {
     fail(`${label}.originalResourceRoot is invalid`);
@@ -415,6 +448,7 @@ function validateConfig(value) {
     `${label}.originalCdnRoots[${index}]`,
   ));
   if (new Set(roots).size !== roots.length) fail(`${label}.originalCdnRoots must be unique`);
+  return revision;
 }
 
 function validateFeatures(value) {
@@ -498,8 +532,8 @@ function validateManifestModel(root) {
   );
 
   exactKeys(root.client, "manifest.json.client", CLIENT_FIELDS);
-  validatePolicy(root.client.policy);
-  validateConfig(root.client.config);
+  const policyRevision = validatePolicy(root.client.policy);
+  const configRevision = validateConfig(root.client.config);
   validateFeatures(root.client.features);
 
   return {
@@ -508,36 +542,40 @@ function validateManifestModel(root) {
     path,
     sha256,
     sizeBytes: Number(sizeBytes),
+    policyRevision,
+    policySemantic: semanticFingerprint(root.client.policy),
+    configRevision,
+    configSemantic: semanticFingerprint(root.client.config),
   };
 }
 
-function parseSignatureBlock(bytes) {
+function parseSignatureBlock(bytes, label = SIGNATURE_NAME) {
   const minimum = SIGNATURE_PREFIX_BYTES + 1 + ED25519_SIGNATURE_BYTES;
   const maximum = SIGNATURE_PREFIX_BYTES + MAX_KEY_ID_BYTES + ED25519_SIGNATURE_BYTES;
-  if (bytes.length < minimum || bytes.length > maximum) fail("manifest.sig has an invalid size");
+  if (bytes.length < minimum || bytes.length > maximum) fail(`${label} has an invalid size`);
   if (!bytes.subarray(0, SIGNATURE_MAGIC.length).equals(SIGNATURE_MAGIC)) {
-    fail("manifest.sig has invalid MLBSIG magic");
+    fail(`${label} has invalid MLBSIG magic`);
   }
   const version = bytes.readUInt16LE(8);
   const algorithm = bytes.readUInt16LE(10);
   const keyIdLength = bytes.readUInt16LE(12);
   const signatureLength = bytes.readUInt16LE(14);
-  if (version !== 1) fail("manifest.sig has an unsupported signature-block version");
-  if (algorithm !== 1) fail("manifest.sig has an unsupported signature algorithm");
-  if (keyIdLength < 1 || keyIdLength > MAX_KEY_ID_BYTES) fail("manifest.sig has an invalid key ID length");
-  if (signatureLength !== ED25519_SIGNATURE_BYTES) fail("manifest.sig has an invalid Ed25519 signature length");
+  if (version !== 1) fail(`${label} has an unsupported signature-block version`);
+  if (algorithm !== 1) fail(`${label} has an unsupported signature algorithm`);
+  if (keyIdLength < 1 || keyIdLength > MAX_KEY_ID_BYTES) fail(`${label} has an invalid key ID length`);
+  if (signatureLength !== ED25519_SIGNATURE_BYTES) fail(`${label} has an invalid Ed25519 signature length`);
   const prefixLength = SIGNATURE_PREFIX_BYTES + keyIdLength;
-  if (bytes.length !== prefixLength + signatureLength) fail("manifest.sig has an inconsistent length");
+  if (bytes.length !== prefixLength + signatureLength) fail(`${label} has an inconsistent length`);
   let keyId;
   try {
     keyId = new TextDecoder("utf-8", { fatal: true }).decode(
       bytes.subarray(SIGNATURE_PREFIX_BYTES, prefixLength),
     );
   } catch (error) {
-    fail("manifest.sig key ID is not valid UTF-8", { cause: error });
+    fail(`${label} key ID is not valid UTF-8`, { cause: error });
   }
   if (!keyId || /[\u0000-\u001f\u007f-\u009f]/.test(keyId)) {
-    fail("manifest.sig key ID contains a control character");
+    fail(`${label} key ID contains a control character`);
   }
   return {
     keyId,
@@ -546,13 +584,13 @@ function parseSignatureBlock(bytes) {
   };
 }
 
-function trustedKey(publicKeys, keyId) {
+function trustedKey(publicKeys, keyId, label = SIGNATURE_NAME) {
   const raw = publicKeys instanceof Map
     ? publicKeys.get(keyId)
     : publicKeys && Object.hasOwn(publicKeys, keyId)
       ? publicKeys[keyId]
       : undefined;
-  if (!raw) fail(`manifest.sig uses untrusted key ID '${keyId}'`);
+  if (!raw) fail(`${label} uses untrusted key ID '${keyId}'`);
   try {
     const key = typeof raw === "string"
       ? createPublicKey({ key: Buffer.from(raw, "base64"), format: "der", type: "spki" })
@@ -579,62 +617,309 @@ async function regularFile(path, label, maximumBytes) {
   return details;
 }
 
-async function verifyReferencedFile(rootRealPath, metadata) {
-  const segments = metadata.path.split("/");
-  let current = rootRealPath;
-  for (let index = 0; index < segments.length; index += 1) {
-    current = resolve(current, segments[index]);
-    let details;
-    try {
-      details = await lstat(current);
-    } catch (error) {
-      fail(`referenced content file is missing: ${metadata.path}`, { cause: error });
-    }
-    if (details.isSymbolicLink()) fail(`referenced content path contains a symlink: ${metadata.path}`);
-    if (index < segments.length - 1 && !details.isDirectory()) {
-      fail(`referenced content path traverses a non-directory: ${metadata.path}`);
-    }
-    if (index === segments.length - 1 && !details.isFile()) {
-      fail(`referenced content path is not a regular file: ${metadata.path}`);
-    }
+async function regularDirectory(path, label) {
+  let details;
+  try {
+    details = await lstat(path);
+  } catch (error) {
+    fail(`${label} is missing`, { cause: error });
   }
-  const escaped = relative(rootRealPath, current);
-  if (!escaped || escaped.startsWith("..") || isAbsolute(escaped)) {
-    fail(`referenced content path escapes its delivery root: ${metadata.path}`);
-  }
-  const resolvedFile = await realpath(current);
-  const resolvedRelative = relative(rootRealPath, resolvedFile);
-  if (!resolvedRelative || resolvedRelative.startsWith("..") || isAbsolute(resolvedRelative)) {
-    fail(`referenced content path escapes its delivery root: ${metadata.path}`);
-  }
-
-  const before = await stat(resolvedFile);
-  if (before.size !== metadata.sizeBytes) {
-    fail(`referenced content size mismatch: expected ${metadata.sizeBytes}, found ${before.size}`);
-  }
-  const digest = createHash("sha256");
-  let streamedBytes = 0;
-  for await (const chunk of createReadStream(resolvedFile)) {
-    streamedBytes += chunk.length;
-    if (streamedBytes > MAX_CONTENT_BYTES) fail("referenced content exceeds the file-size limit");
-    digest.update(chunk);
-  }
-  const after = await stat(resolvedFile);
-  if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || streamedBytes !== before.size) {
-    fail("referenced content changed while it was being validated");
-  }
-  const actualHash = digest.digest("hex");
-  if (actualHash !== metadata.sha256) {
-    fail(`referenced content SHA-256 mismatch: expected ${metadata.sha256}, found ${actualHash}`);
+  if (details.isSymbolicLink() || !details.isDirectory()) {
+    fail(`${label} must be a non-symlink directory`);
   }
 }
 
-/**
- * Validates one complete public/content delivery tree.
- *
- * publicKeys must map MLBSIG key IDs to Ed25519 SPKI DER base64 strings or public KeyObjects.
- */
-export async function validatePublicContentDelivery(rootDirectory, { publicKeys } = {}) {
+function exactDirectoryEntries(actual, expected, label) {
+  const names = actual.map((entry) => entry.name);
+  const missing = expected.filter((name) => !names.includes(name));
+  const unexpected = names.filter((name) => !expected.includes(name));
+  if (missing.length || unexpected.length) {
+    fail(`${label} entries do not match the public allowlist; missing=[${missing.join(",")}], unexpected=[${unexpected.join(",")}]`);
+  }
+}
+
+function isCanonicalVersionDirectory(name) {
+  const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(name);
+  return Boolean(match
+    && BigInt(match[1]) > 0n
+    && BigInt(match[1]) <= MAX_UNSIGNED_32
+    && BigInt(match[2]) <= MAX_UNSIGNED_32);
+}
+
+async function inspectAllowlistedTree(rootRealPath) {
+  const rootEntries = await readdir(rootRealPath, { withFileTypes: true });
+  exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME], "public content root");
+
+  await regularFile(resolve(rootRealPath, MANIFEST_NAME), MANIFEST_NAME, MAX_MANIFEST_BYTES);
+  await regularFile(
+    resolve(rootRealPath, SIGNATURE_NAME),
+    SIGNATURE_NAME,
+    SIGNATURE_PREFIX_BYTES + MAX_KEY_ID_BYTES + ED25519_SIGNATURE_BYTES,
+  );
+  const versionsPath = resolve(rootRealPath, VERSIONS_NAME);
+  await regularDirectory(versionsPath, VERSIONS_NAME);
+
+  const versionEntries = await readdir(versionsPath, { withFileTypes: true });
+  if (versionEntries.length > MAX_VERSION_DIRECTORIES) {
+    fail(`public content tree contains more than ${MAX_VERSION_DIRECTORIES} version directories`);
+  }
+  const versionFiles = new Map();
+  for (const entry of versionEntries) {
+    if (!isCanonicalVersionDirectory(entry.name)) {
+      fail(`public content tree contains invalid version directory '${entry.name}'`);
+    }
+    const versionPath = resolve(versionsPath, entry.name);
+    await regularDirectory(versionPath, `versions/${entry.name}`);
+    const children = await readdir(versionPath, { withFileTypes: true });
+    exactDirectoryEntries(children, ["Document.mlbytes"], `versions/${entry.name}`);
+    const contentPath = `versions/${entry.name}/Document.mlbytes`;
+    const absolutePath = resolve(versionPath, "Document.mlbytes");
+    await regularFile(absolutePath, contentPath, MAX_CONTENT_BYTES);
+    versionFiles.set(contentPath, absolutePath);
+  }
+  return versionFiles;
+}
+
+async function hashFile(path, label) {
+  const before = await stat(path);
+  const digest = createHash("sha256");
+  let streamedBytes = 0;
+  for await (const chunk of createReadStream(path)) {
+    streamedBytes += chunk.length;
+    if (streamedBytes > MAX_CONTENT_BYTES) fail(`${label} exceeds the file-size limit`);
+    digest.update(chunk);
+  }
+  const after = await stat(path);
+  if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || streamedBytes !== before.size) {
+    fail(`${label} changed while it was being validated`);
+  }
+  return Object.freeze({ sizeBytes: before.size, sha256: digest.digest("hex") });
+}
+
+async function hashVersionFiles(versionFiles) {
+  const result = new Map();
+  for (const [path, absolutePath] of versionFiles) {
+    result.set(path, Object.freeze({
+      absolutePath,
+      ...await hashFile(absolutePath, path),
+    }));
+  }
+  return result;
+}
+
+function readSupportedUnsigned64(bytes, offset, label) {
+  const value = bytes.readBigUInt64LE(offset);
+  if (value > MAX_SIGNED_64) fail(`Document.mlbytes ${label} exceeds the supported range`);
+  return value;
+}
+
+function checkedAdd(left, right, label) {
+  const value = left + right;
+  if (value > MAX_SIGNED_64) fail(`Document.mlbytes ${label} exceeds the supported range`);
+  return value;
+}
+
+function decodeUtf8(bytes, label) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error) {
+    fail(`${label} is not valid UTF-8`, { cause: error });
+  }
+}
+
+function verifySignedDocument(bytes, expectedVersion, publicKeys) {
+  if (bytes.length < BUNDLE_HEADER_BYTES) fail("Document.mlbytes is shorter than its fixed header");
+  if (bytes.length > MAX_CONTENT_BYTES) fail("Document.mlbytes exceeds the file-size limit");
+  if (!bytes.subarray(0, BUNDLE_MAGIC.length).equals(BUNDLE_MAGIC)) {
+    fail("Document.mlbytes has invalid MLBytes magic");
+  }
+  if (bytes.readUInt16LE(8) !== 1 || bytes.readUInt16LE(10) !== 0) {
+    fail("Document.mlbytes has an unsupported MLBytes format version");
+  }
+  if (bytes.readUInt32LE(12) !== 1) {
+    fail("Document.mlbytes must be signed and contain no unknown flags");
+  }
+  if (bytes.readUInt32LE(16) !== BUNDLE_HEADER_BYTES) {
+    fail("Document.mlbytes has an invalid header size");
+  }
+  const schemaVersion = bytes.readUInt32LE(20);
+  if (schemaVersion !== DOCUMENT_SCHEMA_VERSION) {
+    fail(`Document.mlbytes must use content schema ${DOCUMENT_SCHEMA_VERSION}`);
+  }
+  const minimumAppVersionCode = bytes.readUInt32LE(24);
+  if (minimumAppVersionCode < MINIMUM_SUPPORTED_APP_VERSION_CODE) {
+    fail(`Document.mlbytes minimum app version code must be at least ${MINIMUM_SUPPORTED_APP_VERSION_CODE}`);
+  }
+  if (bytes.readUInt32LE(28) !== 0) fail("Document.mlbytes header reserved field is nonzero");
+
+  const release = bytes.readUInt32LE(32);
+  const revision = bytes.readUInt32LE(36);
+  const contentVersion = `${release}.${revision}`;
+  if (release === 0 || contentVersion !== expectedVersion) {
+    fail(`Document.mlbytes content version ${contentVersion} does not match manifest version ${expectedVersion}`);
+  }
+  const entryCount = bytes.readUInt32LE(40);
+  if (entryCount !== REQUIRED_DOCUMENT_ENTRIES.length) {
+    fail(`Document.mlbytes must contain exactly ${REQUIRED_DOCUMENT_ENTRIES.length} entries`);
+  }
+  const directorySize = bytes.readUInt32LE(44);
+  if (directorySize < entryCount * DIRECTORY_RECORD_BYTES || directorySize > MAX_DIRECTORY_BYTES) {
+    fail("Document.mlbytes has an invalid directory size");
+  }
+  const payloadOffset = readSupportedUnsigned64(bytes, 48, "payload offset");
+  const storedPayloadSize = readSupportedUnsigned64(bytes, 56, "stored payload size");
+  const totalRawSize = readSupportedUnsigned64(bytes, 64, "uncompressed payload size");
+  const signatureOffset = readSupportedUnsigned64(bytes, 72, "signature offset");
+  const expectedPayloadOffset = BigInt(BUNDLE_HEADER_BYTES + directorySize);
+  if (payloadOffset !== expectedPayloadOffset) {
+    fail("Document.mlbytes payload does not immediately follow its directory");
+  }
+  if (totalRawSize > BigInt(MAX_TOTAL_ENTRY_BYTES)) {
+    fail("Document.mlbytes uncompressed payload exceeds the limit");
+  }
+  const payloadEnd = checkedAdd(payloadOffset, storedPayloadSize, "payload end");
+  if (signatureOffset !== payloadEnd) {
+    fail("Document.mlbytes signature does not immediately follow its payload");
+  }
+  if (signatureOffset > BigInt(bytes.length)) {
+    fail("Document.mlbytes signature offset exceeds the file length");
+  }
+
+  // Authenticate the exact header, directory, and payload before parsing any directory records.
+  const signatureStart = Number(signatureOffset);
+  const signature = parseSignatureBlock(
+    bytes.subarray(signatureStart),
+    "Document.mlbytes signature block",
+  );
+  const key = trustedKey(publicKeys, signature.keyId, "Document.mlbytes signature block");
+  const signed = Buffer.concat([
+    BUNDLE_DOMAIN,
+    Buffer.from([0]),
+    bytes.subarray(0, signatureStart),
+    signature.signedPrefix,
+  ]);
+  if (!verifyEd25519(null, signed, key, signature.signature)) {
+    fail("Document.mlbytes signature does not authenticate the exact bundle bytes");
+  }
+
+  const directoryEnd = BUNDLE_HEADER_BYTES + directorySize;
+  let cursor = BUNDLE_HEADER_BYTES;
+  let nextRelativeOffset = 0n;
+  let calculatedRawSize = 0n;
+  let previousPathBytes;
+  const seenPaths = new Set();
+  const records = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    if (cursor + DIRECTORY_RECORD_BYTES > directoryEnd) {
+      fail("Document.mlbytes directory ended unexpectedly");
+    }
+    const pathLength = bytes.readUInt16LE(cursor);
+    const codec = bytes.readUInt8(cursor + 2);
+    const entryFlags = bytes.readUInt8(cursor + 3);
+    const reserved = bytes.readUInt32LE(cursor + 4);
+    const relativeOffset = readSupportedUnsigned64(bytes, cursor + 8, "entry offset");
+    const storedSize = readSupportedUnsigned64(bytes, cursor + 16, "stored entry size");
+    const rawSize = readSupportedUnsigned64(bytes, cursor + 24, "uncompressed entry size");
+    const expectedSha256 = bytes.subarray(cursor + 32, cursor + 64);
+    cursor += DIRECTORY_RECORD_BYTES;
+    if (pathLength < 1 || pathLength > MAX_PATH_BYTES || cursor + pathLength > directoryEnd) {
+      fail("Document.mlbytes entry path length is invalid");
+    }
+    const pathBytes = bytes.subarray(cursor, cursor + pathLength);
+    cursor += pathLength;
+    const path = decodeUtf8(pathBytes, "Document.mlbytes entry path");
+
+    if (!REQUIRED_DOCUMENT_ENTRIES.includes(path)) {
+      fail(`Document.mlbytes contains undeclared entry '${path}'`);
+    }
+    if (seenPaths.has(path)) fail(`Document.mlbytes contains duplicate entry '${path}'`);
+    seenPaths.add(path);
+    if (previousPathBytes && Buffer.compare(previousPathBytes, pathBytes) >= 0) {
+      fail("Document.mlbytes directory entries are not byte-sorted");
+    }
+    previousPathBytes = pathBytes;
+    if (codec !== 0 && codec !== 1) fail(`Document.mlbytes entry '${path}' uses an unsupported codec`);
+    if (entryFlags !== 0 || reserved !== 0) {
+      fail(`Document.mlbytes entry '${path}' has nonzero flags or reserved data`);
+    }
+    if (relativeOffset !== nextRelativeOffset) {
+      fail("Document.mlbytes entry payloads are not contiguous");
+    }
+    if (storedSize > BigInt(MAX_ENTRY_BYTES)
+        || rawSize < 1n
+        || rawSize > BigInt(MAX_ENTRY_BYTES)) {
+      fail(`Document.mlbytes entry '${path}' exceeds its size limit`);
+    }
+    if (codec === 0 && storedSize !== rawSize) {
+      fail(`Document.mlbytes stored entry '${path}' has inconsistent sizes`);
+    }
+    nextRelativeOffset = checkedAdd(nextRelativeOffset, storedSize, "entry payload size");
+    calculatedRawSize = checkedAdd(calculatedRawSize, rawSize, "uncompressed payload size");
+    if (calculatedRawSize > BigInt(MAX_TOTAL_ENTRY_BYTES)) {
+      fail("Document.mlbytes uncompressed payload exceeds the limit");
+    }
+    records.push({
+      path,
+      codec,
+      relativeOffset: Number(relativeOffset),
+      storedSize: Number(storedSize),
+      rawSize: Number(rawSize),
+      expectedSha256,
+    });
+  }
+  if (cursor !== directoryEnd) fail("Document.mlbytes directory contains trailing bytes");
+  if (nextRelativeOffset !== storedPayloadSize) {
+    fail("Document.mlbytes stored payload total is inconsistent");
+  }
+  if (calculatedRawSize !== totalRawSize) {
+    fail("Document.mlbytes uncompressed payload total is inconsistent");
+  }
+  if (seenPaths.size !== REQUIRED_DOCUMENT_ENTRIES.length
+      || REQUIRED_DOCUMENT_ENTRIES.some((path) => !seenPaths.has(path))) {
+    fail("Document.mlbytes entry set is incomplete");
+  }
+
+  const payloadStart = Number(payloadOffset);
+  for (const record of records) {
+    const storedStart = payloadStart + record.relativeOffset;
+    const storedEnd = storedStart + record.storedSize;
+    if (storedEnd > signatureStart) fail(`Document.mlbytes entry '${record.path}' exceeds the payload`);
+    const stored = bytes.subarray(storedStart, storedEnd);
+    let raw;
+    if (record.codec === 0) {
+      raw = stored;
+    } else {
+      try {
+        const inflated = inflateSync(stored, {
+          info: true,
+          maxOutputLength: record.rawSize,
+        });
+        if (inflated.engine.bytesWritten !== stored.length) {
+          fail(`Document.mlbytes zlib stream has trailing bytes for '${record.path}'`);
+        }
+        raw = inflated.buffer;
+      } catch (error) {
+        if (error instanceof PublicContentManifestError) throw error;
+        fail(`Document.mlbytes contains invalid zlib data for '${record.path}'`, { cause: error });
+      }
+    }
+    if (raw.length !== record.rawSize) {
+      fail(`Document.mlbytes entry '${record.path}' has an inconsistent uncompressed size`);
+    }
+    const actualSha256 = createHash("sha256").update(raw).digest();
+    if (!actualSha256.equals(record.expectedSha256)) {
+      fail(`Document.mlbytes entry '${record.path}' has a SHA-256 mismatch`);
+    }
+  }
+  return Object.freeze({
+    contentVersion,
+    schemaVersion,
+    minimumAppVersionCode,
+    signatureKeyId: signature.keyId,
+  });
+}
+
+async function validateDeliveryInternal(rootDirectory, publicKeys) {
   const requestedRoot = resolve(rootDirectory);
   let rootDetails;
   try {
@@ -646,10 +931,9 @@ export async function validatePublicContentDelivery(rootDirectory, { publicKeys 
     fail("public content delivery root must be a non-symlink directory");
   }
   const rootRealPath = await realpath(requestedRoot);
+  const allowlistedVersionFiles = await inspectAllowlistedTree(rootRealPath);
   const manifestPath = resolve(rootRealPath, MANIFEST_NAME);
   const signaturePath = resolve(rootRealPath, SIGNATURE_NAME);
-  await regularFile(manifestPath, MANIFEST_NAME, MAX_MANIFEST_BYTES);
-  await regularFile(signaturePath, SIGNATURE_NAME, SIGNATURE_PREFIX_BYTES + MAX_KEY_ID_BYTES + ED25519_SIGNATURE_BYTES);
 
   const manifestBytes = await readFile(manifestPath);
   const signatureBytes = await readFile(signaturePath);
@@ -679,14 +963,123 @@ export async function validatePublicContentDelivery(rootDirectory, { publicKeys 
     fail("manifest.json is not valid UTF-8", { cause: error });
   }
   const metadata = validateManifestModel(strictJsonParse(manifestText));
-  await verifyReferencedFile(rootRealPath, metadata);
-
-  return Object.freeze({
+  const versionFiles = await hashVersionFiles(allowlistedVersionFiles);
+  const referenced = versionFiles.get(metadata.path);
+  if (!referenced) fail(`referenced content file is missing: ${metadata.path}`);
+  if (referenced.sizeBytes !== metadata.sizeBytes) {
+    fail(`referenced content size mismatch: expected ${metadata.sizeBytes}, found ${referenced.sizeBytes}`);
+  }
+  if (referenced.sha256 !== metadata.sha256) {
+    fail(`referenced content SHA-256 mismatch: expected ${metadata.sha256}, found ${referenced.sha256}`);
+  }
+  const documentBytes = await readFile(referenced.absolutePath);
+  if (documentBytes.length !== referenced.sizeBytes
+      || createHash("sha256").update(documentBytes).digest("hex") !== referenced.sha256) {
+    fail("referenced content changed while its signed bundle was being validated");
+  }
+  const document = verifySignedDocument(documentBytes, metadata.version, publicKeys);
+  const summary = Object.freeze({
     publicationSequence: metadata.publicationSequence.toString(),
     contentVersion: metadata.version,
     contentPath: metadata.path,
     contentSha256: metadata.sha256,
     contentSizeBytes: metadata.sizeBytes,
     signatureKeyId: signature.keyId,
+    documentSignatureKeyId: document.signatureKeyId,
+    minimumAppVersionCode: document.minimumAppVersionCode,
+  });
+  return { manifestBytes, metadata, versionFiles, summary };
+}
+
+/**
+ * Validates one complete public/content delivery tree.
+ *
+ * publicKeys must map MLBSIG key IDs to Ed25519 SPKI DER base64 strings or public KeyObjects.
+ */
+export async function validatePublicContentDelivery(rootDirectory, { publicKeys } = {}) {
+  return (await validateDeliveryInternal(rootDirectory, publicKeys)).summary;
+}
+
+function compareContentVersions(left, right) {
+  const [leftRelease, leftRevision] = left.split(".").map(BigInt);
+  const [rightRelease, rightRevision] = right.split(".").map(BigInt);
+  if (leftRelease !== rightRelease) return leftRelease < rightRelease ? -1 : 1;
+  if (leftRevision !== rightRevision) return leftRevision < rightRevision ? -1 : 1;
+  return 0;
+}
+
+function sameDescriptor(left, right) {
+  return left.version === right.version
+    && left.path === right.path
+    && left.sha256 === right.sha256
+    && left.sizeBytes === right.sizeBytes;
+}
+
+async function filesAreExactlyEqual(leftPath, rightPath) {
+  const [left, right] = await Promise.all([readFile(leftPath), readFile(rightPath)]);
+  return left.equals(right);
+}
+
+/** Validates a candidate tree and all monotonic/immutable transitions from a prior tree. */
+export async function validatePublicContentTransition(
+  previousRootDirectory,
+  currentRootDirectory,
+  { publicKeys } = {},
+) {
+  const [previous, current] = await Promise.all([
+    validateDeliveryInternal(previousRootDirectory, publicKeys),
+    validateDeliveryInternal(currentRootDirectory, publicKeys),
+  ]);
+
+  const manifestChanged = !previous.manifestBytes.equals(current.manifestBytes);
+  if (manifestChanged) {
+    if (current.metadata.publicationSequence <= previous.metadata.publicationSequence) {
+      fail("a changed manifest requires a strictly increasing publicationSequence");
+    }
+    const contentOrder = compareContentVersions(current.metadata.version, previous.metadata.version);
+    if (contentOrder < 0) fail("content version rollback is not allowed");
+    if (contentOrder === 0 && !sameDescriptor(previous.metadata, current.metadata)) {
+      fail(`content descriptor collision for immutable version ${current.metadata.version}`);
+    }
+    if (current.metadata.policyRevision < previous.metadata.policyRevision) {
+      fail("client policy revision rollback is not allowed");
+    }
+    if (current.metadata.policyRevision === previous.metadata.policyRevision
+        && current.metadata.policySemantic !== previous.metadata.policySemantic) {
+      fail("client policy changed without increasing its revision");
+    }
+    if (current.metadata.configRevision < previous.metadata.configRevision) {
+      fail("client config revision rollback is not allowed");
+    }
+    if (current.metadata.configRevision === previous.metadata.configRevision
+        && current.metadata.configSemantic !== previous.metadata.configSemantic) {
+      fail("client config changed without increasing its revision");
+    }
+  }
+
+  for (const [path, oldFile] of previous.versionFiles) {
+    const newFile = current.versionFiles.get(path);
+    if (!newFile) fail(`immutable content file was removed: ${path}`);
+    if (oldFile.sizeBytes !== newFile.sizeBytes
+        || oldFile.sha256 !== newFile.sha256
+        || !await filesAreExactlyEqual(oldFile.absolutePath, newFile.absolutePath)) {
+      fail(`immutable content file changed: ${path}`);
+    }
+  }
+  const additions = [...current.versionFiles.keys()]
+    .filter((path) => !previous.versionFiles.has(path));
+  const allowedAddition = previous.versionFiles.has(current.metadata.path)
+    ? []
+    : [current.metadata.path];
+  if (additions.length !== allowedAddition.length
+      || additions.some((path, index) => path !== allowedAddition[index])) {
+    fail(`only the active content version may be added; additions=[${additions.join(",")}]`);
+  }
+
+  return Object.freeze({
+    ...current.summary,
+    previousPublicationSequence: previous.summary.publicationSequence,
+    manifestChanged,
+    addedContentPaths: Object.freeze(additions),
   });
 }
