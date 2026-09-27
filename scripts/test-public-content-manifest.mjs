@@ -23,10 +23,12 @@ import test from "node:test";
 import { deflateSync } from "node:zlib";
 
 import {
+  loadPublicContentDelivery,
   validatePublicContentDelivery,
   validatePublicContentTransition,
 } from "./public-content-manifest.mjs";
 import { LEGACY_NAMES, projectLegacyContent } from "./legacy-content.mjs";
+import { projectItems } from "../src/lib/catalog.mjs";
 
 const KEY_ID = "fixture-content-key";
 const CONTENT_VERSION = "1001.6";
@@ -356,6 +358,95 @@ test("validates both signatures, the exact Document header, and the CLI", async 
     assert.equal(cli.status, 0, cli.stderr);
     assert.match(cli.stdout, /Transition from sequence 7 is valid/);
   });
+});
+
+test("loads the manifest-selected checkout catalog instead of a retained older bundle, without HTTP", async (context) => {
+  context.mock.method(globalThis, "fetch", () => {
+    throw new Error("Verified catalog loading must not fetch a previously deployed catalog");
+  });
+  const documents = (name) => ({
+    "heroes.json": { heroes: [{ heroId: 1, skins: [{
+      skinId: 1011, category: 0, name, landscape: "https://example.com/skin.webp",
+      source: { backupArchive: "https://example.com/skin.zip", upgrades: [] },
+    }] }] },
+    "preparations.json": { preparationSchemaVersion: 4, types: [{
+      key: "effects.recall", name: "Recall", items: [{
+        category: 0, id: 0, name: `${name} effect`, image: "https://example.com/effect.webp",
+        source: { backupArchive: "https://example.com/effect.zip", upgrades: [] },
+      }],
+    }] },
+    "skin-tags.json": { tags: [] },
+  });
+  await withTransition(async ({ oldTree, newTree }) => {
+    const options = { publicKeys: { [KEY_ID]: oldTree.publicKey } };
+    const previous = await loadPublicContentDelivery(oldTree.root, options);
+    const current = await loadPublicContentDelivery(newTree.root, options);
+    assert.equal(previous.summary.contentVersion, "1001.6");
+    assert.equal(current.summary.contentVersion, "1001.7");
+    assert.equal(current.summary.contentPath, "versions/1001.7/Document.mlbytes");
+    assert.equal(current.entries["heroes.json"].heroes[0].skins[0].skinId, 1011);
+    assert.deepEqual(Object.keys(current.entries).sort(), ["heroes.json", "preparations.json", "skin-tags.json"]);
+    const previousItems = projectItems(previous.entries);
+    const currentItems = projectItems(current.entries);
+    assert.deepEqual(previousItems.map((item) => item.name), ["Previous catalog", "Previous catalog effect"]);
+    assert.deepEqual(currentItems.map((item) => item.name), ["Current catalog", "Current catalog effect"]);
+    assert.deepEqual(currentItems.map((item) => item.id), previousItems.map((item) => item.id),
+      "A display-name update must retain the existing share-link identities");
+    assert.deepEqual(currentItems.map((item) => item.path), previousItems.map((item) => item.path));
+    assert.ok(currentItems.every((item) => !("archive" in item)), "Web previews must not expose archive URLs");
+    assert.equal(globalThis.fetch.mock.callCount(), 0);
+  }, {
+    previous: { version: "1001.6", documentOptions: { entries: entriesForDocuments(documents("Previous catalog")) } },
+    current: { version: "1001.7", documentOptions: { entries: entriesForDocuments(documents("Current catalog")) } },
+  });
+});
+
+test("does not fall back to an older checkout document when the selected document is missing", async () => {
+  await withTransition(async ({ oldTree, newTree }) => {
+    await rm(dirname(newTree.contentFile), { recursive: true });
+    await assert.rejects(loadPublicContentDelivery(newTree.root, {
+      publicKeys: { [KEY_ID]: oldTree.publicKey },
+    }), /referenced content file is missing/);
+  }, { previous: { version: "1001.6" }, current: { version: "1001.7" } });
+});
+
+test("catalog loading rejects tampered manifest and document bytes before returning entries", async () => {
+  await withFixture(async ({ root, publicKey }) => {
+    await writeFile(join(root, "manifest.json"), "{}");
+    await assert.rejects(loadPublicContentDelivery(root, {
+      publicKeys: { [KEY_ID]: publicKey },
+    }), /does not authenticate/);
+  });
+  await withFixture(async (item) => {
+    const tampered = Buffer.from(item.contentBytes);
+    tampered[tampered.length - 1] ^= 1;
+    await writeFile(item.contentFile, tampered);
+    const options = { publicKeys: { [KEY_ID]: item.publicKey } };
+    await assert.rejects(loadPublicContentDelivery(item.root, options), /SHA-256 mismatch/);
+    await replaceDocument(item, tampered);
+    await assert.rejects(loadPublicContentDelivery(item.root, options), /signature does not authenticate/);
+  });
+});
+
+test("catalog loading strictly parses authenticated JSON entries even without legacy companions", async () => {
+  const cases = [
+    { bytes: Buffer.from('{"heroes":'), error: /heroes\.json/ },
+    { bytes: Buffer.from('{"heroes":[],"heroes":[]}'), error: /duplicate key 'heroes'/ },
+    { bytes: Buffer.from([0x7b, 0xff, 0x7d]), error: /UTF-8/ },
+    { bytes: Buffer.from('{"heroes":[],"value":9007199254740993}'), error: /safe integer/ },
+    { bytes: Buffer.from('{"heroes":[],"value":1.5}'), error: /integer/ },
+    { bytes: Buffer.from('{"heroes":[],"value":1e2}'), error: /integer/ },
+  ];
+  for (const current of cases) {
+    await withFixture(async (item) => {
+      const entries = documentEntries();
+      entries.set("heroes.json", current.bytes);
+      await replaceDocument(item, signedDocument({ privateKey: item.privateKey, entries }));
+      await assert.rejects(loadPublicContentDelivery(item.root, {
+        publicKeys: { [KEY_ID]: item.publicKey },
+      }), current.error);
+    });
+  }
 });
 
 test("rejects a tampered manifest signature before parsing manifest data", async () => {

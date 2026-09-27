@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { decodeBundle, documentUrl, projectItems, skinPath, skinFilter } from '../src/lib/catalog.mjs';
+import { loadItemsFromContent, projectItems, skinPath, skinFilter } from '../src/lib/catalog.mjs';
 
 const skin = { skinId: 1011, category: 0, name: 'Moonlight Archer', landscape: 'https://example.com/miya.webp', source: { backupArchive: 'https://example.com/miya.zip', upgrades: [] } };
 const prep = { preparationId: 1, name: 'Recall', image: 'https://example.com/recall.webp', archive: 'https://example.com/recall.zip', items: [
@@ -9,22 +9,6 @@ const prep = { preparationId: 1, name: 'Recall', image: 'https://example.com/rec
   { name: 'Two', image: 'https://example.com/2.webp', archive: 'https://example.com/2.zip' },
 ] };
 const fixture = { 'heroes.json': { heroes: [{ heroId: 1, skins: [skin] }] }, 'preparations.json': { preparations: [prep] } };
-assert.equal(documentUrl(''), 'https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes');
-assert.equal(documentUrl('https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes'),
-  'https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes');
-assert.equal(documentUrl('https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes'),
-  'https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes');
-for (const invalid of [
-  ' ', 'http://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes',
-  'https://example.com/nutcx/app-content/main/Document.mlbytes',
-  'https://raw.githubusercontent.com/other/app-content/main/Document.mlbytes',
-  'https://raw.githubusercontent.com/nutcx/app-content/preparations-v4/Document.mlbytes',
-  'https://raw.githubusercontent.com/nutcx/app-content/main/versions/1001.4/assets/Document.mlbytes',
-  'https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes?preview=1',
-  'https://raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes#fragment',
-  'https://user@raw.githubusercontent.com/nutcx/app-content/main/Document.mlbytes',
-  'https://raw.githubusercontent.com/nutcx/app-content/main/../Document.mlbytes',
-]) assert.throws(() => documentUrl(invalid), /Invalid Document URL override/);
 assert.equal(skinPath(1, 1011, 0, 1013, 0), '/heroes/1/1011-1013/');
 assert.equal(skinPath(1, 1011, 0, 1013, 1), '/heroes/1/1011-1013c1/');
 assert.equal(skinPath(1, 1011, 1, 1013, 2), '/heroes/1/1011c1-1013c2/');
@@ -87,22 +71,36 @@ const html = readFileSync(`dist/items/${original[0].id}/index.html`, 'utf8');
 assert.ok(html.includes('property="og:image"') && html.includes('landscape.webp'));
 assert.ok(html.includes('https://nutcx.github.io' + original[0].path));
 assert.ok(html.includes('package=com.nutcx.tools') && html.includes('browser_fallback_url='));
-const response = await fetch(documentUrl());
-assert.ok(response.ok);
-const signed = Buffer.from(await response.arrayBuffer());
-const signedItems = projectItems(decodeBundle(signed));
+const originalFetch = globalThis.fetch;
+const originalOverride = process.env.NUTCX_DOCUMENT_URL;
+let signedItems;
+try {
+  globalThis.fetch = () => { throw new Error('Catalog loading must not request a remote document'); };
+  process.env.NUTCX_DOCUMENT_URL = 'https://example.com/stale/Document.mlbytes';
+  signedItems = await loadItemsFromContent('public/content');
+} finally {
+  globalThis.fetch = originalFetch;
+  if (originalOverride === undefined) delete process.env.NUTCX_DOCUMENT_URL;
+  else process.env.NUTCX_DOCUMENT_URL = originalOverride;
+}
 assert.ok(signedItems.length > 0);
 const missingArchiveItem = signedItems.find(item => item.kind === 'preparation' && item.availableToApply === false);
-assert.ok(missingArchiveItem, 'The signed v4 catalog should include preview-only items');
+assert.ok(missingArchiveItem, 'The signed current catalog should include preview-only items');
 const unavailableHtml = readFileSync(`dist${missingArchiveItem.path}index.html`, 'utf8');
 assert.ok(unavailableHtml.includes('not available to apply in the app yet'));
 assert.ok(unavailableHtml.includes('Open in NutCracker'));
 assert.ok(!/https:\/\/[^"'\s<>]+\.zip(?:\?[^"'\s<>]*)?/.test(unavailableHtml),
   'Preview HTML must not expose archive downloads');
-const tampered = Buffer.from(signed); tampered[100] ^= 1;
-assert.throws(() => decodeBundle(tampered), /signature verification failed/);
-assert.throws(() => decodeBundle(signed.subarray(0, signed.length - 1)), /Invalid signature block/);
-console.log('Item checks passed: cross-platform IDs, reorder and rename stability, preview metadata, asset association, signed content and tamper rejection.');
+const byIdHtml = readFileSync(`dist/items/${missingArchiveItem.id}/index.html`, 'utf8');
+assert.ok(byIdHtml.includes(`https://nutcx.github.io${missingArchiveItem.path}`),
+  'The full-ID route should select the canonical preview');
+const history = JSON.parse(readFileSync('dist/catalog-history.json', 'utf8'));
+const publishedRoutes = new Set(history.items.map(item => `${item.id}\0${item.path}`));
+for (const item of signedItems) {
+  assert.ok(publishedRoutes.has(`${item.id}\0${item.path}`),
+    `The generated catalog must include the checkout's current signed item ${item.id}`);
+}
+console.log('Item checks passed: cross-platform IDs, reorder and rename stability, preview metadata, asset association, and same-checkout signed content without network access.');
 
 assert.equal(skinFilter({ category: 0, type: 'Anime' }), 'official');
 assert.equal(skinFilter({ category: 1, type: ' | Anime | Naruto' }), 'anime');

@@ -60,6 +60,22 @@ before parsing its directory. It then enforces MLBytes format 1.0, schema 3, the
 version, minimum app version code 11 or newer, the complete three-entry document profile, bounded
 offsets and sizes, decompression, and each entry's SHA-256 digest.
 
+## Website catalog consumer
+
+The website builds its skin and Preparation previews from this same checked-out
+delivery tree. `loadPublicContentDelivery` validates the manifest and the exact
+referenced document with the pinned publisher key, then parses the already-verified
+entry bytes. It does not reread an unverified copy, fetch the deployed manifest, or
+fall back to an old `app-content` bundle. Malformed entry JSON, duplicate keys,
+invalid UTF-8 and unsafe numeric IDs also fail the build.
+
+Owner Admin's publication push to `main` triggers the existing Pages workflow, so
+the generated catalog and its signed source deploy together. Preview projection
+retains existing item identities, grouping and retirement history; it does not emit
+archive links or editable database JSON. The previous deployment's
+`catalog-history.json` remains a separate input solely to preserve removed links,
+not to supply active catalog data.
+
 ## Validation and publication order
 
 Run the self-contained fixture suite:

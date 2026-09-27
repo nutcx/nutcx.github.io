@@ -1056,7 +1056,8 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     minimumAppVersionCode: document.minimumAppVersionCode,
     legacyFileCount: allowlisted.legacyFiles.size,
   });
-  return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0, summary };
+  return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0,
+    summary, documentEntries: document.entries };
 }
 
 /**
@@ -1066,6 +1067,29 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
  */
 export async function validatePublicContentDelivery(rootDirectory, { publicKeys } = {}) {
   return (await validateDeliveryInternal(rootDirectory, publicKeys)).summary;
+}
+
+/**
+ * Reads catalog entries from the exact document authenticated by the local
+ * manifest. Reuse the verified bytes rather than reopening the content file.
+ */
+export async function loadPublicContentDelivery(rootDirectory, { publicKeys } = {}) {
+  const { summary, documentEntries } = await validateDeliveryInternal(rootDirectory, publicKeys);
+  const entries = {};
+  for (const [name, bytes] of documentEntries) {
+    entries[name] = strictJsonParse(decodeUtf8(bytes, name), {
+      label: name,
+      maxValues: 1_000_000,
+      numberParser: (source) => {
+        const value = Number(source);
+        if (!/^-?(?:0|[1-9][0-9]*)$/.test(source) || !Number.isSafeInteger(value)) {
+          fail(`${name} contains a number that is not a safe integer`);
+        }
+        return value;
+      },
+    });
+  }
+  return { summary, entries };
 }
 
 function compareContentVersions(left, right) {

@@ -65,21 +65,23 @@ Skin previews use `/heroes/<heroId>/<sourceSkinId>-<targetSkinId>/` (for example
 `/heroes/1/1011-1013/`). Original skins use `/heroes/1/1011/`. Nonzero source or target
 categories append `c<category>` to that skin ID to avoid collisions. Preparation
 previews use `/preparations/<parentId>/<8-character-id>/`. The old `/items/<sha256>/`
-pages remain available and declare the new URL as canonical. Pages are generated at build time from the current public signed
-`nutcx/app-content` bundle. The build verifies the pinned Ed25519 publisher and
-entry checksums before generating HTML. The pages publish preview metadata only;
+pages remain available and declare the new URL as canonical. Pages are generated at build time from
+`public/content/manifest.json` and its referenced `Document.mlbytes` in the same
+checkout. The build verifies the pinned Ed25519 publisher on both files, the
+manifest's version, size and SHA-256, and the document's entry checksums before
+generating HTML. The pages publish preview metadata only;
 archive download URLs and editable source JSON are not emitted.
 
-The build uses the published, signed v4 bundle at
-`https://raw.githubusercontent.com/nutcx/app-content/main/channels/preparations-v4/Document.mlbytes`.
-`NUTCX_DOCUMENT_URL` may override it only with that URL or the legacy root
-`Document.mlbytes` for a deliberate local comparison. GitHub Pages uses the v4
-default so its Preparation previews match NutCracker v11.
+Owner Admin publishes the signed content to this repository's `main` branch,
+which triggers the existing Pages workflow. The same deployment updates both the
+app's content files and the website's skin and Preparation previews; no separate
+catalog upload or app release is needed. The build does not fetch the deployed
+manifest (which would still describe the previous deployment) or the old
+`app-content` catalog. `NUTCX_DOCUMENT_URL` is no longer used.
 
-The existing Pages workflow rebuilds every six hours and supports manual dispatch.
-A failed download or signature check fails the build, preserving the last deployed
-site. A content release can therefore take up to the next successful rebuild to
-appear on the website. Missing item paths use the 404 page.
+The Pages workflow also rebuilds every six hours and supports manual dispatch.
+A missing or invalid signed delivery fails the build without falling back to an
+older catalog, preserving the last deployed site. Missing item paths use the 404 page.
 
 `public/.well-known/assetlinks.json` contains the Play Console Digital Asset Links
 certificate for `com.nutcx.tools`. Production automatic opening requires this file
@@ -95,8 +97,9 @@ Preparations without an archive still get a preview page and link into the app;
 the preview marks them as unavailable to apply until an archive is supplied.
 
 Run `node scripts/test-item-links.mjs` after building to check shared IDs, metadata,
-website association and signed-bundle tamper rejection. App-side URL tests are in
-Fuego-GFX's `ItemLinksTest`.
+website association and same-checkout catalog loading. Run
+`pnpm test:content-delivery` for signed manifest/document tamper rejection and
+manifest-selected catalog freshness. App-side URL tests are in Fuego-GFX's `ItemLinksTest`.
 
 ## Retired content
 
