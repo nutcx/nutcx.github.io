@@ -15,7 +15,8 @@
     "preview": "astro preview",
     "validate": "node scripts/validate-site.mjs",
     "test:content-delivery": "node scripts/test-public-content-manifest.mjs",
-    "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs && node scripts/test-analytics.mjs && node scripts/test-search-readiness.mjs && node scripts/test-catalog-browsing.mjs && pnpm test:content-delivery"
+    "test:featured": "node scripts/test-featured-selection.mjs && node scripts/test-featured-pages.mjs",
+    "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs && node scripts/test-analytics.mjs && node scripts/test-search-readiness.mjs && node scripts/test-catalog-browsing.mjs && pnpm test:featured && pnpm test:content-delivery"
   },
   "dependencies": {
     "astro": "7.2.10",

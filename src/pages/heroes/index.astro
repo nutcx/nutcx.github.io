@@ -2,12 +2,16 @@
 import SiteLayout from '../../layouts/SiteLayout.astro';
 import { loadHeroes } from '../../lib/catalog.mjs';
 import HeroPortrait from '../../components/HeroPortrait.astro';
+import FeaturedCatalog from '../../components/FeaturedCatalog.astro';
+import { loadFeaturedContent } from '../../lib/featured-catalog.mjs';
 import '../../styles/catalog.css';
 const heroes = await loadHeroes();
+const featured = (await loadFeaturedContent()).filter(group => group.kind === 'skin');
 ---
 <SiteLayout title="Hero Skin Catalog" description="Find a hero, compare original, official, custom and anime skin previews, and share a link or open your selection in NutCracker Tools." page="heroes">
   <div class="catalog-shell">
     <header class="catalog-heading"><p class="eyebrow">Content library</p><h1>Hero skin catalog.</h1><p>Browse {heroes.length} heroes with available skin previews. Choose a hero to compare the catalog's original, official, custom and anime options, then share a preview or open it in the Android app.</p><a href="/guides/shared-previews/">How to use and share previews →</a> · <a href="/preparations/">Browse preparations →</a></header>
+    <FeaturedCatalog groups={featured} title="Featured skins" id="featured-skins" />
     <section data-catalog>
       <div class="catalog-controls"><label>Search heroes<input type="search" placeholder="Hero name or ID…" data-catalog-search /></label></div>
       <p class="catalog-count" role="status" aria-live="polite" data-catalog-count>{heroes.length} heroes</p>

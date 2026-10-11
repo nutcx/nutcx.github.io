@@ -1028,7 +1028,8 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
   } catch (error) {
     fail("manifest.json is not valid UTF-8", { cause: error });
   }
-  const metadata = validateManifestModel(strictJsonParse(manifestText));
+  const manifest = strictJsonParse(manifestText);
+  const metadata = validateManifestModel(manifest);
   const versionFiles = await hashVersionFiles(allowlisted.versionFiles);
   const referenced = versionFiles.get(metadata.path);
   if (!referenced) fail(`referenced content file is missing: ${metadata.path}`);
@@ -1057,7 +1058,8 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     legacyFileCount: allowlisted.legacyFiles.size,
   });
   return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0,
-    summary, documentEntries: document.entries };
+    summary, documentEntries: document.entries,
+    clientFeatures: Object.freeze({ ...manifest.client.features }) };
 }
 
 /**
@@ -1074,7 +1076,7 @@ export async function validatePublicContentDelivery(rootDirectory, { publicKeys 
  * manifest. Reuse the verified bytes rather than reopening the content file.
  */
 export async function loadPublicContentDelivery(rootDirectory, { publicKeys } = {}) {
-  const { summary, documentEntries } = await validateDeliveryInternal(rootDirectory, publicKeys);
+  const { summary, documentEntries, clientFeatures } = await validateDeliveryInternal(rootDirectory, publicKeys);
   const entries = {};
   for (const [name, bytes] of documentEntries) {
     entries[name] = strictJsonParse(decodeUtf8(bytes, name), {
@@ -1089,7 +1091,7 @@ export async function loadPublicContentDelivery(rootDirectory, { publicKeys } = 
       },
     });
   }
-  return { summary, entries };
+  return { summary, entries, clientFeatures };
 }
 
 function compareContentVersions(left, right) {

@@ -1,0 +1,87 @@
+---
+import type { FeaturedGroup } from '../lib/featured-catalog.mjs';
+import { loadHeroes } from '../lib/catalog.mjs';
+interface Props { groups: readonly FeaturedGroup[]; title: string; id: string; }
+const { groups, title, id } = Astro.props;
+const heroes = groups.some(group => group.kind === 'skin')
+  ? new Map((await loadHeroes()).map(hero => [hero.id, hero.name])) : new Map<number, string>();
+const cards = groups.map(group => {
+  const sourceCounts = new Map<string, number>();
+  const optionNumbers = new Map<string, number>();
+  for (const choice of group.options) sourceCounts.set(choice.source.id, (sourceCounts.get(choice.source.id) || 0) + 1);
+  return { ...group, originalCount: sourceCounts.size,
+    context: group.kind === 'skin'
+      ? `${heroes.get(group.heroId!) || `Hero ${group.heroId}`} · ${group.categoryLabel}` : group.group,
+    choices: group.options.map(choice => {
+      const optionNumber = (optionNumbers.get(choice.source.id) || 0) + 1;
+      optionNumbers.set(choice.source.id, optionNumber);
+      return { ...choice, optionNumber, variant: (sourceCounts.get(choice.source.id) || 0) > 1,
+        restore: choice.item.filter === 'original' };
+    }),
+  };
+});
+---
+{groups.length > 0 && <section class="featured-catalog" aria-labelledby={`${id}-heading`} data-featured-section>
+  <header class="featured-catalog__heading">
+    <p class="eyebrow">Picked for you</p>
+    <h2 id={`${id}-heading`}>{title}</h2>
+    <p>Choose the original you have, then preview its replacement before opening it in the app.</p>
+  </header>
+  <div class="featured-catalog__grid">
+    {cards.map(group => <article class:list={['featured-card', { 'featured-card--effect': group.kind === 'preparation' }]}
+        data-featured-card={group.key}>
+        <div class="featured-card__art">
+          {group.image ? <img src={group.image} alt="" width="480" height="300" loading="lazy" decoding="async" />
+            : <span>Preview unavailable</span>}
+        </div>
+        <div class="featured-card__body">
+          <span class="featured-card__badge">Featured</span>
+          <h3>{group.name}</h3>
+          <p>{group.context}</p>
+          <p class="featured-card__count">{group.originalCount} original{group.originalCount === 1 ? '' : 's'} available</p>
+        </div>
+        <details class="featured-choices" data-featured-choices>
+          <summary>Choose original<span class="sr-only"> for {group.name}</span></summary>
+          <ul aria-label={`Originals for ${group.name}`}>
+            {group.choices.map(choice => <li>
+                <a class="featured-route" href={choice.item.path} data-featured-route={choice.item.id}
+                  data-featured-source={choice.source.id}>
+                  <span class="featured-route__art">
+                    {choice.source.image ? <img src={choice.source.image} alt="" width="96" height="72" loading="lazy" decoding="async" />
+                      : <span aria-hidden="true">—</span>}
+                  </span>
+                  <span class="featured-route__copy">
+                    <strong>{choice.source.name}</strong>
+                    <span>{choice.restore ? 'Restore original' : `Replace with ${choice.item.name}`}
+                      {choice.variant && ` · Option ${choice.optionNumber}`}</span>
+                  </span>
+                  <span class="featured-route__arrow" aria-hidden="true">→</span>
+                </a>
+              </li>)}
+          </ul>
+        </details>
+      </article>)}
+  </div>
+</section>}
+<style>
+  .featured-catalog{margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--outline-soft)}
+  .featured-catalog__heading{margin-bottom:20px}.featured-catalog__heading h2{font-size:1.6rem;line-height:1.3;margin:8px 0}
+  .featured-catalog__heading>p:last-child{color:var(--text-soft);line-height:1.6;max-width:720px}
+  .featured-catalog__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+  .featured-card{min-width:0;border:1px solid var(--outline-soft);border-radius:20px;background:var(--surface-low);overflow:hidden}
+  .featured-card__art{aspect-ratio:8/5;display:grid;place-items:center;background:var(--surface);color:var(--text-muted)}
+  .featured-card__art img{width:100%;height:100%;object-fit:cover}.featured-card--effect .featured-card__art img{object-fit:contain;padding:20px}
+  .featured-card__body{padding:18px}.featured-card__badge{font-size:.75rem;font-weight:700;background:var(--teal-container);color:var(--teal);padding:5px 10px;border-radius:20px}
+  .featured-card h3{font-size:1.12rem;line-height:1.4;margin:12px 0 6px;overflow-wrap:anywhere}
+  .featured-card__body p{font-size:.85rem;color:var(--text-soft);line-height:1.6}.featured-card__count{margin-top:6px}
+  .featured-choices{border-top:1px solid var(--outline-soft)}.featured-choices summary{padding:15px 18px;min-height:48px;color:var(--primary-bright);font-weight:600;line-height:1.4}
+  .featured-choices summary:hover,.featured-route:hover{background:var(--surface-high)}.featured-choices[open] summary{border-bottom:1px solid var(--outline-soft)}
+  .featured-choices ul{list-style:none;max-height:360px;overflow-y:auto;overscroll-behavior:contain}.featured-choices li+li{border-top:1px solid var(--outline-soft)}
+  .featured-route{display:flex;align-items:center;gap:12px;padding:12px;min-height:72px;color:var(--text)}
+  .featured-route__art{display:grid;place-items:center;width:72px;height:54px;flex-shrink:0;background:var(--surface);border-radius:8px;overflow:hidden;color:var(--text-muted)}
+  .featured-route__art img{width:100%;height:100%;object-fit:cover}.featured-card--effect .featured-route__art img{object-fit:contain}
+  .featured-route__copy{min-width:0;flex:1}.featured-route__copy strong{display:block;font-size:.9rem;line-height:1.4;overflow-wrap:anywhere}
+  .featured-route__copy>span{display:block;font-size:.8rem;line-height:1.5;color:var(--text-soft);margin-top:3px;overflow-wrap:anywhere}.featured-route__arrow{color:var(--primary-bright);flex-shrink:0}
+  @media(max-width:1000px){.featured-catalog__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:580px){.featured-catalog__grid{grid-template-columns:1fr}.featured-catalog__heading h2{font-size:1.4rem}}
+</style>

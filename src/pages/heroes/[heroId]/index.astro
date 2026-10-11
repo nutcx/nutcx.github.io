@@ -5,9 +5,12 @@ import { loadHeroes, groupItemsBySource } from '../../../lib/catalog.mjs';
 import '../../../styles/catalog.css';
 import HeroPortrait from '../../../components/HeroPortrait.astro';
 import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import FeaturedCatalog from '../../../components/FeaturedCatalog.astro';
+import { loadFeaturedContent } from '../../../lib/featured-catalog.mjs';
 export async function getStaticPaths() { return (await loadHeroes()).map(hero => ({ params: { heroId: String(hero.id) }, props: { hero } })); }
 const { hero } = Astro.props;
 const sourceGroups = groupItemsBySource(hero.items);
+const featured = (await loadFeaturedContent()).filter(group => group.kind === 'skin' && group.heroId === hero.id);
 ---
 <SiteLayout title={`${hero.name} skins`} description={`Browse ${hero.name}'s available original, official, custom and anime skins. Preview, share, or open an item in NutCracker Tools.`} page="heroes" socialImage={hero.image || undefined}>
   <div class="catalog-shell">
@@ -16,6 +19,7 @@ const sourceGroups = groupItemsBySource(hero.items);
       {hero.image && <HeroPortrait src={hero.image} size={88} eager />}
       <div><p class="eyebrow">Hero #{hero.id}</p><h1>{hero.name} skins</h1><p>Choose from {sourceGroups.length} original skins. Open the skin you have to see its replacement options, just like in the app.</p></div>
     </header>
+    <FeaturedCatalog groups={featured} title="Featured skins" id="featured-skins" />
     <CatalogItems sourceGroups={sourceGroups} />
     <section class="catalog-help"><h2>Choosing a {hero.name} preview</h2><p>Start with an original skin, then browse the replacements listed for that skin. Each replacement keeps its own preview and share link.</p><p><a href="/guides/shared-previews/">Read the preview and sharing guide</a> or <a href="/guides/get-started/">set up NutCracker on Android</a>.</p></section>
   </div>
