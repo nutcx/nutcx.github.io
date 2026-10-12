@@ -9,6 +9,12 @@ already-signed `1001.5` document. Future content releases must use a version gre
 public/content/
 |-- manifest.json
 |-- manifest.sig
+|-- legacy/                         (optional before its first publication)
+|   |-- 533271041.mlbytes            (skins)
+|   |-- 789276696.mlbytes            (skin tags)
+|   |-- 674624113.mlbytes            (upgrade sources)
+|   |-- 181462965.mlbytes            (upgrade routes)
+|   `-- 819204176.mlbytes            (preparations and effects in the old row layout)
 `-- versions/
     `-- <release>.<revision>/
         `-- Document.mlbytes
@@ -30,10 +36,50 @@ be exactly `versions/<version>/Document.mlbytes`. SHA-256 is 64 lowercase hexade
 the declared size is 1 through 41,943,040 bytes. Publishing a new manifest must never replace an
 existing version path with different bytes.
 
-No other public content files are permitted. The root allowlist is exactly `manifest.json`,
-`manifest.sig`, and `versions/`; each canonical version directory contains exactly one regular,
+No other public content files are permitted. The root allowlist is `manifest.json`,
+`manifest.sig`, `versions/`, and the optional `legacy/`; each canonical version directory contains exactly one regular,
 non-symlink `Document.mlbytes` file. Raw JSON databases, temporary files, sidecars, and nested assets
 make validation fail.
+
+## Legacy compatibility files
+
+Owner Admin generates all five `legacy/` files from the same authenticated canonical
+`heroes.json`, `skin-tags.json`, and `preparations.json` entries used in the active `Document.mlbytes`. These are the old
+binary row format: little-endian 32-bit integers, 7-bit-prefixed UTF-8 strings, and the historical
+AES-128-CBC/PKCS7 wire encoding. That historical key is public compatibility data, not an
+authentication or secrecy mechanism. Official category-0 skin IDs remain unchanged; other categories
+use deterministic export-only aliases so old routes cannot join the wrong same-ID skin.
+
+Preparations & Effects are projected into the old nested row layout: every effect with a source is
+one parent row, and each of its upgrade routes is one child row. Catalog-only effects remain targets,
+not invented parents. Parent IDs are stable export-only aliases: SHA-256 of the UTF-8 text
+`preparation:<type-key>:<category>:<id>`, with the first big-endian 32 bits masked by `0x3fffffff`
+and OR-ed with `0x40000000`. An alias collision fails publication rather than silently joining groups.
+Names, images, backup archives, route order, repeated route variants, optional route name/image
+overrides, and blank archive links are retained. Targets are resolved within their full type/category/ID
+identity. Valid custom-category source owners and self routes are retained too.
+
+Known parent types keep the original enum IDs: battle emote `0`, recall `1`, spawn `2`, elimination `3`,
+notification `4`, and trail `5`. Radiant Kits and unfamiliar types use `-1` (unknown), and child rarity
+tags use `-1`; a modern effect category is not a legacy rarity. The legacy file therefore does not
+represent every modern field or reuse official effect IDs as globally unique parent IDs. Historical
+schema-3 preparations also remain verifiable with their original IDs and unknown type/tag fields.
+Shared compatibility fixtures are documented in `scripts/fixtures/legacy-export/README.md`.
+
+No fields are added to the signed schema-1 manifest, which existing clients parse strictly.
+Instead, host validation authenticates the active document, derives all five outputs, and
+requires exact byte equality.
+When `legacy/` is present it must contain all five approved regular files and nothing else. Each file
+is bounded to 8 MiB plus one AES padding block. Missing, extra, symlinked, modified, or stale outputs
+fail validation. Once published, the entire directory cannot be removed by a later transition.
+
+Existing deployments without `legacy/` remain valid, permitting a safe first publication. Content
+publications must generate all five companions together with the new document and signed pointer;
+settings-only publications leave the companions unchanged. The aliases are mutable latest-content
+endpoints, so they should be served with revalidation rather than immutable caching.
+
+Hosting these files does not redirect already-installed clients that are hardcoded to a different
+repository or URL. Those old endpoints are not rewritten by this website validation change.
 
 `client.policy` embeds the existing ClientPolicy schema without additions or omissions. It includes
 the policy ID/revision, mode, presentation fields, application-version fields, active window, and
@@ -71,8 +117,9 @@ invalid UTF-8 and unsafe numeric IDs also fail the build.
 
 Owner Admin's publication push to `main` triggers the existing Pages workflow, so
 the generated catalog and its signed source deploy together. Preview projection
-retains existing item identities, grouping and retirement history; it does not emit
-archive links or editable database JSON. The previous deployment's
+
+retains existing item identities, grouping, numeric aliases and retirement history;
+it does not emit archive links or editable database JSON. The previous deployment's
 `catalog-history.json` remains a separate input solely to preserve removed links,
 not to supply active catalog data.
 
@@ -96,8 +143,9 @@ The transition validator accepts an unchanged delivery. Any changed manifest mus
 higher publication sequence. Content versions cannot roll back; a reused content version must retain
 the exact same path, size, and digest. Policy and config revisions cannot roll back, and their meaning
 cannot change without increasing the corresponding revision. Every old version file must remain
-byte-for-byte identical, and the only permitted addition is the version file selected by the new
-manifest. The Pages workflow extracts the pre-push Git tree and applies these checks before deployment.
+byte-for-byte identical, and the only permitted version-file addition is the document selected by the new
+manifest. Legacy files are independently checked against that document.
+The Pages workflow extracts the pre-push Git tree and applies these checks before deployment.
 
 The validator also rejects duplicate or extra JSON fields, unsafe paths, malformed policy/config data,
 untrusted or invalid signatures, symlinked paths, size mismatches, and SHA-256 mismatches. Fixtures

@@ -64,13 +64,20 @@ If the repository name or hosting domain changes, update `astro.config.mjs`, `sr
 Skin previews use `/heroes/<heroId>/<sourceSkinId>-<targetSkinId>/` (for example,
 `/heroes/1/1011-1013/`). Original skins use `/heroes/1/1011/`. Nonzero source or target
 categories append `c<category>` to that skin ID to avoid collisions. Preparation
-previews use `/preparations/<parentId>/<8-character-id>/`. The old `/items/<sha256>/`
-pages remain available and declare the new URL as canonical. Pages are generated at build time from
+
+previews use `/preparations/<type-path>/<parentId>/<8-character-id>/` (for example,
+`/preparations/effects/recall/0/d405e23c/`). Dots in the catalog type key become
+path separators, so `effects.battle-emote` becomes `effects/battle-emote`. The
+numeric v11 URLs and old `/items/<sha256>/` pages remain available. Pages are generated at build time from
 `public/content/manifest.json` and its referenced `Document.mlbytes` in the same
 checkout. The build verifies the pinned Ed25519 publisher on both files, the
 manifest's version, size and SHA-256, and the document's entry checksums before
 generating HTML. The pages publish preview metadata only;
 archive download URLs and editable source JSON are not emitted.
+
+Typed links require the updated NutCracker app. Existing v11 numeric and
+`/items/<sha256>/` links continue to show the same preview and use the numeric
+app URL shape, while their canonical metadata points to the typed website URL.
 
 Owner Admin publishes the signed content to this repository's `main` branch,
 which triggers the existing Pages workflow. The same deployment updates both the

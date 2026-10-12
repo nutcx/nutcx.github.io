@@ -48,7 +48,10 @@ export function projectItems(entries) {
   if (preparations?.preparationSchemaVersion === 4) {
     requireValue(Array.isArray(preparations.types), 'Invalid Preparation catalog');
     for (const type of preparations.types) {
-      requireValue(typeof type.key === 'string' && typeof type.name === 'string' && Array.isArray(type.items), 'Invalid Preparation type');
+      requireValue(typeof type.key === 'string'
+        && /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(type.key)
+        && typeof type.name === 'string' && Array.isArray(type.items), 'Invalid Preparation type');
+      const typePath = type.key.replaceAll('.', '/');
       const byIdentity = new Map();
       for (const item of type.items) {
         requireValue(Number.isSafeInteger(item.category) && Number.isSafeInteger(item.id)
@@ -60,13 +63,19 @@ export function projectItems(entries) {
       for (const source of type.items) {
         if (!source.source) continue;
         const base = `v4:${type.key}:${source.category}:${source.id}`;
-        const path = identity => `/preparations/${source.id}/${hash(identity).slice(0, 8)}/`;
+        const legacyPath = identity => `/preparations/${source.id}/${hash(identity).slice(0, 8)}/`;
+        const path = identity => {
+          const typed = `/preparations/${typePath}/${source.id}/${hash(identity).slice(0, 8)}/`;
+          return 'https://nutcx.github.io'.length + typed.length <= 200 ? typed : legacyPath(identity);
+        };
+        const alias = identity => path(identity) === legacyPath(identity) ? undefined : legacyPath(identity);
         const backupIdentity = `${base}:backup`;
         const backupAvailable = Boolean(https(source.source.backupArchive));
         add(backupIdentity, source.name, source.image,
           `Preparation preview · Original${backupAvailable ? '' : ' · Not available to apply'}`,
           source.source.backupArchive, path(backupIdentity),
-          { kind: 'preparation', group: type.name, filter: 'original', availableToApply: backupAvailable }, true);
+          { kind: 'preparation', group: type.name, filter: 'original', availableToApply: backupAvailable,
+            legacyPath: alias(backupIdentity) }, true);
         requireValue(Array.isArray(source.source.upgrades), 'Invalid Preparation upgrades');
         for (const upgrade of source.source.upgrades) {
           const target = byIdentity.get(`${upgrade.targetCategory}:${upgrade.targetId}`);
@@ -79,7 +88,8 @@ export function projectItems(entries) {
           add(identity, name, image,
             `Preparation preview · For ${source.name}${available ? '' : ' · Not available to apply'}`,
             upgrade.archive, path(identity),
-            { kind: 'preparation', group: type.name, filter: 'replacement', availableToApply: available, sourceId: hash(backupIdentity) }, true);
+            { kind: 'preparation', group: type.name, filter: 'replacement', availableToApply: available, sourceId: hash(backupIdentity),
+              legacyPath: alias(identity) }, true);
         }
       }
     }

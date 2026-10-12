@@ -6,6 +6,12 @@ on:
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
+    inputs:
+      discord_recovery:
+        description: "Only after checking Discord: skip an interrupted announcement without reposting it"
+        type: choice
+        options: [none, skip-interrupted]
+        default: none
 
 permissions:
   contents: read
@@ -56,6 +62,7 @@ jobs:
 
       - name: Validate signed public content delivery
         run: |
+          pnpm test:discord
           pnpm test:content-delivery
           node scripts/validate-public-content-manifest.mjs public/content \
             --previous-root "$NUTCX_PREVIOUS_CONTENT_ROOT" \
@@ -71,3 +78,100 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  notify-discord:
+    needs: [build, deploy]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # A notification failure must not undo a successful website deployment.
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check webhook is configured without exposing it
+        id: configured
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [[ -n "$DISCORD_WEBHOOK_URL" ]]; then
+            printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'enabled=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out deployed revision
+        if: steps.configured.outputs.enabled == 'true'
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        if: steps.configured.outputs.enabled == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        if: steps.configured.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+
+      - name: Install locked dependencies
+        if: steps.configured.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Locate last durable announcement record
+        id: history
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/discord-content-notifier.mjs locate
+
+      - name: Restore announcement history
+        if: steps.history.outputs.artifact_id != ''
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.history.outputs.artifact_id }}
+          run-id: ${{ steps.history.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/discord-previous
+          digest-mismatch: error
+
+      - name: Prepare verified content comparison and images
+        id: prepare
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          PREVIOUS_ARTIFACT: ${{ steps.history.outputs.artifact_id }}
+          DISCORD_RECOVERY: ${{ inputs.discord_recovery || 'none' }}
+        run: |
+          args=(prepare "$RUNNER_TEMP/discord-current")
+          if [[ -n "$PREVIOUS_ARTIFACT" ]]; then
+            args+=("$RUNNER_TEMP/discord-previous")
+          fi
+          node scripts/discord-content-notifier.mjs "${args[@]}"
+
+      - name: Record intent before any Discord post
+        if: steps.prepare.outputs.mode == 'send'
+        uses: actions/upload-artifact@v7
+        with:
+          name: discord-state-intent-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/discord-current/state.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Send announcement with one everyone mention
+        if: steps.prepare.outputs.mode == 'send'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_INTENT_RECORDED: 'true'
+        run: node scripts/discord-content-notifier.mjs send "$RUNNER_TEMP/discord-current"
+
+      - name: Preserve confirmed or interrupted result
+        if: always() && contains(fromJSON('["seed", "advance", "send", "skip"]'), steps.prepare.outputs.mode)
+        uses: actions/upload-artifact@v7
+        with:
+          name: discord-state-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/discord-current/state.json
+          if-no-files-found: error
+          retention-days: 90

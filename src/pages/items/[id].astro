@@ -3,7 +3,18 @@ import ItemPreview from '../../components/ItemPreview.astro';
 import RetirementNotice from '../../components/RetirementNotice.astro';
 import { loadPreviewHistory } from '../../lib/retirements.mjs';
 export async function getStaticPaths() {
-  return (await loadPreviewHistory()).previews.map(item => ({ params: { id: item.id }, props: { item } }));
+  const byId = new Map();
+  for (const item of (await loadPreviewHistory()).previews) {
+    // Typed previews come first; old numeric aliases keep their own paths.
+    if (!byId.has(item.id)) byId.set(item.id, item);
+  }
+  return [...byId.values()].map(item => ({
+    params: { id: item.id },
+    // Existing /items links must still open old apps, while SEO uses the typed URL.
+    props: { item: !('retired' in item) && item.legacyPath
+      ? { ...item, path: item.legacyPath, canonicalPath: item.path }
+      : item },
+  }));
 }
 const { item } = Astro.props;
 ---

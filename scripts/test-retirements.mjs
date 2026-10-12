@@ -8,6 +8,14 @@ assert.equal(removed.retired[0].replacement, replacement.path);
 assert.equal(removed.retired[0].reason, notice.reason);
 assert.equal(mergeHistory([old, replacement], removed.history, [notice]).retired.length, 0, 'Restored content becomes active again');
 assert.equal(mergeHistory([], removed.history, []).retired.length, 2, 'History survives successive removals');
+const typed = { id: 'c'.repeat(64), path: '/preparations/effects/recall/0/1234abcd/', name: 'Seal' };
+const numeric = { ...typed, path: '/preparations/0/1234abcd/' };
+const aliases = mergeHistory([typed, numeric], [numeric], []);
+assert.equal(aliases.retired.length, 0, 'The old numeric route stays active beside the typed route');
+assert.deepEqual(aliases.history.map(item => item.path).sort(), [typed.path, numeric.path].sort());
+assert.equal(mergeHistory([typed], aliases.history, []).retired[0].path, numeric.path,
+  'A retired alias must remain available after its canonical URL changes');
 assert.throws(() => mergeHistory([], [old], [notice]), /Invalid retirement/);
 assert.throws(() => mergeHistory([], [{ ...old, path: '/../../bad/' }], []), /Invalid retained/);
+assert.throws(() => mergeHistory([], [{ ...typed, path: '/preparations/../recall/0/1234abcd/' }], []), /Invalid retained/);
 console.log('Retirement checks passed: retained routes, reasons, replacement validation, restoration and path validation.');

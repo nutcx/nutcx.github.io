@@ -45,6 +45,8 @@ const firstKey = `v4:effects.recall:0:0:target:0:99740:${firstVariant}`;
 const secondKey = `v4:effects.recall:0:0:target:0:99740:${secondVariant}`;
 assert.deepEqual(v4Items.slice(0, 3).map(item => item.id), [sha(backupKey), sha(firstKey), sha(secondKey)]);
 assert.deepEqual(v4Items.slice(0, 3).map(item => item.path),
+  [backupKey, firstKey, secondKey].map(key => `/preparations/effects/recall/0/${sha(key).slice(0, 8)}/`));
+assert.deepEqual(v4Items.slice(0, 3).map(item => item.legacyPath),
   [backupKey, firstKey, secondKey].map(key => `/preparations/0/${sha(key).slice(0, 8)}/`));
 assert.equal(v4Items[2].name, 'Big Seal');
 assert.equal(v4Items[2].image, 'https://example.com/big.webp');
@@ -55,6 +57,8 @@ const missingVariant = sha('\0Seal\0https://example.com/seal.webp').slice(0, 32)
 const missingUpgradeKey = `v4:effects.recall:0:7:target:0:99740:${missingVariant}`;
 assert.deepEqual(v4Items.slice(3).map(item => item.id), [sha(missingBackupKey), sha(missingUpgradeKey)]);
 assert.deepEqual(v4Items.slice(3).map(item => item.path),
+  [missingBackupKey, missingUpgradeKey].map(key => `/preparations/effects/recall/7/${sha(key).slice(0, 8)}/`));
+assert.deepEqual(v4Items.slice(3).map(item => item.legacyPath),
   [missingBackupKey, missingUpgradeKey].map(key => `/preparations/7/${sha(key).slice(0, 8)}/`));
 assert.ok(v4Items.slice(3).every(item => item.availableToApply === false
   && item.description.includes('Not available to apply') && !('archive' in item)));
@@ -62,6 +66,16 @@ assert.throws(() => projectItems({ ...v4, 'preparations.json': {
   ...v4['preparations.json'], types: [{ ...v4['preparations.json'].types[0],
     items: v4['preparations.json'].types[0].items.slice(0, 1) }],
 } }), /Missing Preparation target/);
+assert.throws(() => projectItems({ ...v4, 'preparations.json': {
+  ...v4['preparations.json'], types: [{ ...v4['preparations.json'].types[0], key: 'effects/../recall' }],
+} }), /Invalid Preparation type/);
+const longKeyItems = projectItems({ ...v4, 'preparations.json': {
+  ...v4['preparations.json'], types: [{ ...v4['preparations.json'].types[0],
+    key: 'a' + 'b'.repeat(180), items: v4['preparations.json'].types[0].items.slice(1, 2)
+      .map(item => ({ ...item, source: { backupArchive: 'https://example.com/backup.zip', upgrades: [] } })) }],
+} });
+assert.match(longKeyItems[0].path, /^\/preparations\/99740\/[a-f0-9]{8}\/$/);
+assert.equal(longKeyItems[0].legacyPath, undefined, 'Numeric fallback must not duplicate an alias');
 const assetlinks = JSON.parse(readFileSync('dist/.well-known/assetlinks.json', 'utf8'));
 assert.equal(assetlinks[0].target.package_name, 'com.nutcx.tools');
 assert.match(assetlinks[0].target.sha256_cert_fingerprints[0], /^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/);
@@ -91,10 +105,27 @@ assert.ok(unavailableHtml.includes('not available to apply in the app yet'));
 assert.ok(unavailableHtml.includes('Open in NutCracker'));
 assert.ok(!/https:\/\/[^"'\s<>]+\.zip(?:\?[^"'\s<>]*)?/.test(unavailableHtml),
   'Preview HTML must not expose archive downloads');
+
+const oldV11Html = readFileSync(`dist${missingArchiveItem.legacyPath}index.html`, 'utf8');
+assert.ok(oldV11Html.includes('not available to apply in the app yet'));
+assert.ok(oldV11Html.includes(`intent://nutcx.github.io${missingArchiveItem.legacyPath}`));
+assert.ok(oldV11Html.includes(`https://nutcx.github.io${missingArchiveItem.path}`),
+  'Old numeric previews should identify the typed URL as canonical');
 const byIdHtml = readFileSync(`dist/items/${missingArchiveItem.id}/index.html`, 'utf8');
 assert.ok(byIdHtml.includes(`https://nutcx.github.io${missingArchiveItem.path}`),
-  'The full-ID route should select the canonical preview');
+  'The full-ID route should select the typed canonical preview');
+assert.ok(byIdHtml.includes(`intent://nutcx.github.io${missingArchiveItem.legacyPath}`),
+  'Existing full-ID preparation links must retain an app path understood by v11');
+for (const item of signedItems.filter(item => item.kind === 'preparation' && item.legacyPath)) {
+  const fullIdPreview = readFileSync(`dist/items/${item.id}/index.html`, 'utf8');
+  assert.ok(fullIdPreview.includes(`intent://nutcx.github.io${item.legacyPath}`),
+    `Full-ID app intent must remain compatible for preparation ${item.id}`);
+  assert.ok(fullIdPreview.includes(`href="https://nutcx.github.io${item.path}"`),
+    'Full-ID previews should keep the typed canonical metadata');
+}
 const history = JSON.parse(readFileSync('dist/catalog-history.json', 'utf8'));
+assert.ok(history.items.some(item => item.id === missingArchiveItem.id && item.path === missingArchiveItem.path));
+assert.ok(history.items.some(item => item.id === missingArchiveItem.id && item.path === missingArchiveItem.legacyPath));
 const publishedRoutes = new Set(history.items.map(item => `${item.id}\0${item.path}`));
 for (const item of signedItems) {
   assert.ok(publishedRoutes.has(`${item.id}\0${item.path}`),

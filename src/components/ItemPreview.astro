@@ -28,7 +28,7 @@ const breadcrumbItems = [
 const backPath = !isOriginal && source ? `${source.path}#replacements` : item.kind === 'skin' ? `/heroes/${item.heroId}/` : '/preparations/';
 const backLabel = !isOriginal && source ? `Replacements for ${source.name}` : item.kind === 'skin' ? 'Back to hero skins' : 'Back to preparations';
 ---
-<SiteLayout canonicalPath={item.path} title={pageTitle} description={pageDescription} socialImage={item.image || undefined}>
+<SiteLayout canonicalPath={item.canonicalPath || item.path} title={pageTitle} description={pageDescription} socialImage={item.image || undefined}>
   <article class="item-preview">
     <a class="item-back" href={backPath}>← {backLabel}</a>
     <Breadcrumbs items={breadcrumbItems} />
