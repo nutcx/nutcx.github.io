@@ -67,6 +67,7 @@ test('malformed persisted state fails closed rather than silently resetting base
 });
 test('state artifacts ignore expired, other branches and current attempt, retain earlier rerun', () => {
   const artifact = (id, name, run = 1, branch = 'main', expired = false) => ({ id, name, expired,
+    created_at: `2026-10-12T15:48:${String(id).padStart(2, '0')}Z`,
     workflow_run: { id: run, head_branch: branch } });
   const result = requireFunction('selectStateArtifact')([
     artifact(1, 'discord-state-result-1-1'),
@@ -77,6 +78,80 @@ test('state artifacts ignore expired, other branches and current attempt, retain
     artifact(6, 'discord-state-intent-5-2', 5),
   ], { runId: '5', attempt: '2' });
   assert.equal(result.id, 5);
+});
+
+const historyArtifact = (id, name, created_at) => ({ id, name, created_at, expired: false,
+  workflow_run: { id: Number(name.split('-')[3]), head_branch: 'main' } });
+
+test('newer confirmed result wins with the real non-chronological GitHub artifact IDs', () => {
+  const intent = historyArtifact(11758200101, 'discord-state-intent-38272684516-1', '2026-10-12T15:48:34Z');
+  const result = historyArtifact(11757816707, 'discord-state-result-38272684516-1', '2026-10-12T15:48:40Z');
+  for (const artifacts of [[intent, result], [result, intent]]) {
+    assert.equal(requireFunction('selectStateArtifact')(artifacts), result);
+  }
+});
+
+test('publication chronology does not depend on artifact IDs or API array order', () => {
+  const earlier = historyArtifact(100, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  const latest = historyArtifact(1, 'discord-state-intent-11-1', '2026-10-13T08:40:00Z');
+  for (const artifacts of [[earlier, latest], [latest, earlier]]) {
+    assert.equal(requireFunction('selectStateArtifact')(artifacts), latest);
+  }
+});
+
+test('result supersedes the matching intent even when creation timestamps are equal', () => {
+  const intent = historyArtifact(100, 'discord-state-intent-10-1', '2026-10-12T15:48:40Z');
+  const result = historyArtifact(1, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  assert.equal(requireFunction('selectStateArtifact')([intent, result]), result);
+});
+
+test('matching result preference and group chronology are independent of metadata order', () => {
+  const result = historyArtifact(1, 'discord-state-result-10-1', '2026-10-12T15:48:38Z');
+  const other = historyArtifact(2, 'discord-state-result-9-1', '2026-10-12T15:48:39Z');
+  const intent = historyArtifact(100, 'discord-state-intent-10-1', '2026-10-12T15:48:40Z');
+  for (const artifacts of [[intent, other, result], [result, intent, other], [other, result, intent]]) {
+    assert.equal(requireFunction('selectStateArtifact')(artifacts), result);
+  }
+});
+
+test('an interrupted result remains pending and cannot authorize automatic replay', () => {
+  const intent = historyArtifact(100, 'discord-state-intent-10-1', '2026-10-12T15:48:34Z');
+  const result = historyArtifact(1, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  const selected = requireFunction('selectStateArtifact')([intent, result]);
+  assert.equal(selected, result);
+  const interrupted = { ...pending(), receipts: [{ id: '1234567890', everyoneParsed: true }] };
+  assert.throws(() => requireFunction('planPublication')(interrupted, snapshot('12')), /interrupted/i);
+});
+
+test('a newer pending rerun is not hidden by an older completed attempt', () => {
+  const result = historyArtifact(100, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  const intent = historyArtifact(1, 'discord-state-intent-10-2', '2026-10-12T15:48:41Z');
+  assert.equal(requireFunction('selectStateArtifact')([result, intent]), intent);
+  assert.throws(() => requireFunction('planPublication')(pending(), snapshot('12')), /interrupted/i);
+});
+
+test('a higher pending attempt wins a creation-time tie without masking interruption', () => {
+  const result = historyArtifact(100, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  const intent = historyArtifact(1, 'discord-state-intent-10-2', '2026-10-12T15:48:40Z');
+  assert.equal(requireFunction('selectStateArtifact')([result, intent]), intent);
+});
+
+test('eligible history with missing or malformed creation time fails closed', () => {
+  const valid = historyArtifact(100, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  for (const timestamp of [undefined, '', 'not-a-date']) {
+    const invalid = historyArtifact(1, 'discord-state-intent-11-1', timestamp);
+    assert.throws(() => requireFunction('selectStateArtifact')([valid, invalid]), /creation time/i);
+  }
+});
+
+test('ignored artifacts do not need valid chronology and cannot reset history', () => {
+  const valid = historyArtifact(1, 'discord-state-result-10-1', '2026-10-12T15:48:40Z');
+  const expired = { ...historyArtifact(100, 'discord-state-intent-11-1'), expired: true };
+  const otherBranch = { ...historyArtifact(101, 'discord-state-intent-11-1'), workflow_run: { id: 11, head_branch: 'feature' } };
+  const current = historyArtifact(102, 'discord-state-intent-12-1');
+  assert.equal(requireFunction('selectStateArtifact')([expired, otherBranch, current, valid],
+    { runId: '12', attempt: '1' }), valid);
+  assert.equal(requireFunction('selectStateArtifact')([]), null);
 });
 
 const planForSend = () => ({ mode: 'send', state: pending(), changes: [],

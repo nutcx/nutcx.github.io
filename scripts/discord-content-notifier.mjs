@@ -55,11 +55,29 @@ export function planPublication(previousState, current, { recovery = 'none' } = 
 
 /** Latest durable record, including a pending intent from a previous run attempt. */
 export function selectStateArtifact(artifacts, { runId, attempt } = {}) {
-  return artifacts.filter(artifact => {
-    const match = /^discord-state-(?:intent|result)-(\d+)-(\d+)$/.exec(artifact.name);
-    return match && !artifact.expired && artifact.workflow_run?.head_branch === 'main'
-      && !(match[1] === String(runId) && Number(match[2]) >= Number(attempt));
-  }).sort((a, b) => b.id - a.id)[0] ?? null;
+  const groups = new Map();
+  for (const artifact of artifacts) {
+    const match = /^discord-state-(intent|result)-(\d+)-(\d+)$/.exec(artifact.name);
+    if (!match || artifact.expired || artifact.workflow_run?.head_branch !== 'main'
+      || (match[2] === String(runId) && Number(match[3]) >= Number(attempt))) continue;
+    const createdAt = Date.parse(artifact.created_at);
+    requireValue(typeof artifact.created_at === 'string'
+      && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(artifact.created_at)
+      && Number.isFinite(createdAt), 'Discord history has an invalid creation time; refusing to reset or replay.');
+    const key = `${match[2]}-${match[3]}`;
+    const group = groups.get(key) ?? { run: BigInt(match[2]), attempt: BigInt(match[3]), createdAt };
+    group.createdAt = Math.max(group.createdAt, createdAt);
+    const prior = group[match[1]];
+    if (!prior || createdAt > prior.createdAt) group[match[1]] = { artifact, createdAt };
+    groups.set(key, group);
+  }
+  // IDs are opaque: GitHub can assign an older intent a larger ID than its result.
+  // Group first so a result supersedes only its matching intent, not a newer attempt.
+  const compareDescending = (a, b) => a === b ? 0 : a > b ? -1 : 1;
+  const latest = [...groups.values()].sort((a, b) => b.createdAt - a.createdAt
+    || compareDescending(a.run, b.run) || compareDescending(a.attempt, b.attempt))[0];
+  // A result may still contain pending state after a failed send; the planner checks it.
+  return (latest?.result ?? latest?.intent)?.artifact ?? null;
 }
 
 function webhookEndpoint(value) {

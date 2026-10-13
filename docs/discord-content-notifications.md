@@ -42,6 +42,11 @@ archive hashes, not archive URLs), status and confirmed message IDs. No signing 
 webhook URL, raw database JSON, or comparison image is included in these records.
 Nothing is added to the signed `public/content` delivery tree.
 
+History is ordered by creation time, not artifact ID: GitHub IDs are not chronological.
+Within the same run and attempt, the result supersedes its intent. A newer attempt's
+pending record is still retained, and a result containing pending state still requires
+review; merely having a result artifact does not prove that sending completed.
+
 History artifacts expire after 90 days. Scheduled successful runs refresh the baseline;
 if all records expire or are deleted, the next run seeds silently again. That avoids
 reposting the whole catalog but does not reconstruct missed announcements.
