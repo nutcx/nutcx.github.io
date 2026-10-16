@@ -9,6 +9,7 @@ already-signed `1001.5` document. Future content releases must use a version gre
 public/content/
 |-- manifest.json
 |-- manifest.sig
+|-- clientversion.json              (optional, generated version-service hint)
 |-- legacy/                         (optional before its first publication)
 |   |-- 533271041.mlbytes            (skins)
 |   |-- 789276696.mlbytes            (skin tags)
@@ -37,9 +38,11 @@ the declared size is 1 through 41,943,040 bytes. Publishing a new manifest must 
 existing version path with different bytes.
 
 No other public content files are permitted. The root allowlist is `manifest.json`,
-`manifest.sig`, `versions/`, and the optional `legacy/`; each canonical version directory contains exactly one regular,
-non-symlink `Document.mlbytes` file. Raw JSON databases, temporary files, sidecars, and nested assets
-make validation fail.
+`manifest.sig`, `versions/`, the optional `legacy/`, and optional `clientversion.json`;
+each canonical version directory contains exactly one regular, non-symlink `Document.mlbytes` file.
+The client-version hint has its own bounded schema and is not a signed catalog or client configuration.
+Raw JSON databases, temporary files, other sidecars, and nested assets make validation fail.
+See [Client version lookup](client-version-lookup.md) for its workflow configuration and recovery-only purpose.
 
 ## Legacy compatibility files
 

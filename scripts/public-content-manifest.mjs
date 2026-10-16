@@ -12,6 +12,11 @@ import {
   LEGACY_NAMES,
   projectLegacyContent,
 } from "./legacy-content.mjs";
+import {
+  CLIENT_VERSION_NAME,
+  MAX_CLIENT_VERSION_HINT_BYTES,
+  parseClientVersionHint,
+} from "./client-version.mjs";
 
 const MANIFEST_NAME = "manifest.json";
 const SIGNATURE_NAME = "manifest.sig";
@@ -659,8 +664,16 @@ function isCanonicalVersionDirectory(name) {
 async function inspectAllowlistedTree(rootRealPath) {
   const rootEntries = await readdir(rootRealPath, { withFileTypes: true });
   const legacyPresent = rootEntries.some((entry) => entry.name === LEGACY_NAME);
+  const clientVersionPresent = rootEntries.some((entry) => entry.name === CLIENT_VERSION_NAME);
   exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME,
-    ...(legacyPresent ? [LEGACY_NAME] : [])], "public content root");
+    ...(legacyPresent ? [LEGACY_NAME] : []),
+    ...(clientVersionPresent ? [CLIENT_VERSION_NAME] : [])], "public content root");
+
+  if (clientVersionPresent) {
+    const path = resolve(rootRealPath, CLIENT_VERSION_NAME);
+    await regularFile(path, CLIENT_VERSION_NAME, MAX_CLIENT_VERSION_HINT_BYTES);
+    parseClientVersionHint(await readFile(path));
+  }
 
   const legacyFiles = new Map();
   if (legacyPresent) {

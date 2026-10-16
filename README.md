@@ -59,6 +59,11 @@ Before the first deployment, open the repository's **Settings → Pages** page a
 
 If the repository name or hosting domain changes, update `astro.config.mjs`, `src/lib/site.ts`, `public/robots.txt`, `public/site.webmanifest`, and `scripts/validate-site.mjs` before deploying.
 
+The workflow can also generate an optional game client-version hint. Configure the
+zone secret and optional channel variable as described in
+[Client version lookup](docs/client-version-lookup.md). This does not change the signed
+catalog or require a publisher key in GitHub Actions.
+
 ## Shared item previews
 
 Skin previews use `/heroes/<heroId>/<sourceSkinId>-<targetSkinId>/` (for example,

@@ -50,6 +50,18 @@ jobs:
           printf 'NUTCX_PREVIOUS_CONTENT_ROOT=%s\n' \
             "$previous_tree/public/content" >> "$GITHUB_ENV"
 
+      - name: Set up version lookup runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Refresh optional game client version hint
+        timeout-minutes: 2
+        env:
+          MLBB_VERSION_ZONE_ID: ${{ secrets.MLBB_VERSION_ZONE_ID || vars.MLBB_VERSION_ZONE_ID }}
+          MLBB_VERSION_CHANNEL: ${{ vars.MLBB_VERSION_CHANNEL || 'and_usa' }}
+        run: node scripts/refresh-client-version.mjs
+
       - name: Install, build, and upload site
         uses: withastro/action@v6
         with:
@@ -62,6 +74,7 @@ jobs:
 
       - name: Validate signed public content delivery
         run: |
+          pnpm test:client-version
           pnpm test:discord
           pnpm test:content-delivery
           node scripts/validate-public-content-manifest.mjs public/content \

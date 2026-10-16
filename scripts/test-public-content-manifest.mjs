@@ -505,6 +505,44 @@ test("enforces the exact public/content tree allowlist", async () => {
   }
 });
 
+test("accepts the separately validated optional client version hint without changing signed content", async () => {
+  await withFixture(async ({ root, publicKey }) => {
+    const originalManifest = await readFile(join(root, "manifest.json"));
+    const originalSignature = await readFile(join(root, "manifest.sig"));
+    await writeFile(join(root, "clientversion.json"), JSON.stringify({
+      schemaVersion: 1,
+      resourceRoot: "res_version5",
+      channel: "and_usa",
+      clientVersion: "2.2.16.1232.1",
+      resourceVersion: "1232.1",
+      checkedAt: "2026-10-16T16:00:00.000Z",
+    }));
+    const options = { publicKeys: { [KEY_ID]: publicKey } };
+    const result = await validatePublicContentDelivery(root, options);
+    assert.equal(result.contentVersion, CONTENT_VERSION);
+    assert.deepEqual(await readFile(join(root, "manifest.json")), originalManifest);
+    assert.deepEqual(await readFile(join(root, "manifest.sig")), originalSignature);
+    await rm(join(root, "clientversion.json"));
+    assert.equal((await validatePublicContentDelivery(root, options)).contentVersion, CONTENT_VERSION);
+  });
+});
+
+test("rejects invalid or oversized client version sidecars without weakening other content checks", async () => {
+  const valid = {
+    schemaVersion: 1, resourceRoot: "res_version5", channel: "and_usa",
+    clientVersion: "2.2.16.1232.1", resourceVersion: "1232.1", checkedAt: "2026-10-16T16:00:00.000Z",
+  };
+  for (const raw of ["{}", "{", JSON.stringify({ ...valid, resourceVersion: "1232.2" }),
+    JSON.stringify({ ...valid, zoneid: "synthetic-private-value" }), " ".repeat(4097)]) {
+    await withFixture(async ({ root, publicKey }) => {
+      await writeFile(join(root, "clientversion.json"), raw);
+      await assert.rejects(validatePublicContentDelivery(root, {
+        publicKeys: { [KEY_ID]: publicKey },
+      }), /Client version hint is unavailable|file-size limit|invalid size/);
+    });
+  }
+});
+
 test("rejects unsafe, mutable, and version-mismatched content paths", async () => {
   await withFixture(async ({ root, manifest, privateKey, publicKey }) => {
     for (const unsafe of [
