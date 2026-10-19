@@ -260,6 +260,29 @@ async function writeSignedManifest(root, value, privateKey, keyId = KEY_ID) {
   );
 }
 
+const APPLICATION_IDS = ["com.example.alpha", "com.example.beta"];
+
+function manifestV2For(manifest, { policyRevision = 7, applicationIds = APPLICATION_IDS } = {}) {
+  const { policy, ...client } = structuredClone(manifest.client);
+  const policies = {};
+  for (const applicationId of applicationIds) {
+    policies[applicationId] = { ...structuredClone(policy), revision: policyRevision };
+  }
+  return { ...structuredClone(manifest), schemaVersion: 2, client: { policies, ...client } };
+}
+
+async function writeSignedManifestV2(root, value, privateKey, keyId = KEY_ID) {
+  const bytes = Buffer.from(
+    typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(join(root, "manifest-v2.json"), bytes);
+  await writeFile(
+    join(root, "manifest-v2.sig"),
+    signatureBlock(MANIFEST_DOMAIN, bytes, privateKey, keyId),
+  );
+}
+
 async function fixture({
   keys = generateKeyPairSync("ed25519"),
   version = CONTENT_VERSION,
@@ -541,6 +564,180 @@ test("rejects invalid or oversized client version sidecars without weakening oth
       }), /Client version hint is unavailable|file-size limit|invalid size/);
     });
   }
+});
+
+test("accepts the signed schema-2 companion manifest without changing schema-1 delivery", async () => {
+  await withFixture(async ({ root, manifest, privateKey, publicKey }) => {
+    const options = { publicKeys: { [KEY_ID]: publicKey } };
+    const originalManifest = await readFile(join(root, "manifest.json"));
+    assert.equal((await validatePublicContentDelivery(root, options)).applicationPolicyCount, 0);
+
+    await writeSignedManifestV2(root, manifestV2For(manifest), privateKey);
+    const result = await validatePublicContentDelivery(root, options);
+    assert.equal(result.contentVersion, CONTENT_VERSION);
+    assert.equal(result.applicationPolicyCount, APPLICATION_IDS.length);
+    assert.deepEqual(await readFile(join(root, "manifest.json")), originalManifest);
+
+    const loaded = await loadPublicContentDelivery(root, options);
+    assert.deepEqual(loaded.clientFeatures, manifest.client.features);
+    assert.ok(Object.keys(loaded.entries).length > 0);
+
+    const transition = await validatePublicContentTransition(root, root, options);
+    assert.equal(transition.applicationPolicyCount, APPLICATION_IDS.length);
+    assert.equal(transition.manifestChanged, false);
+  });
+});
+
+test("rejects an incomplete, unsigned, or inconsistent schema-2 companion manifest", async () => {
+  const cases = [
+    ["missing signature", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest), privateKey);
+      await rm(join(root, "manifest-v2.sig"));
+    }, /must be published together/],
+    ["missing manifest", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest), privateKey);
+      await rm(join(root, "manifest-v2.json"));
+    }, /must be published together/],
+    ["signature over different bytes", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest), privateKey);
+      await writeFile(join(root, "manifest-v2.json"), JSON.stringify(manifestV2For(manifest)));
+    }, /manifest-v2\.sig does not authenticate the exact manifest-v2\.json bytes/],
+    ["untrusted key", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest), privateKey, "other-key");
+    }, /manifest-v2\.sig uses untrusted key ID 'other-key'/],
+    ["schema-1 version in the companion", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, { ...manifestV2For(manifest), schemaVersion: 1 }, privateKey);
+    }, /manifest-v2\.json\.schemaVersion is outside its allowed range/],
+    ["publication sequence mismatch", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, { ...manifestV2For(manifest), publicationSequence: 8 }, privateKey);
+    }, /manifest-v2\.json\.publicationSequence must match manifest\.json exactly/],
+    ["content descriptor mismatch", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.content.sizeBytes += 1;
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.content must match manifest\.json exactly/],
+    ["config mismatch", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.client.config.originalResourceRoot = "android2";
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.client\.config must match manifest\.json exactly/],
+    ["features mismatch", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.client.features["catalog.v4"] = false;
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.client\.features must match manifest\.json exactly/],
+    ["singular policy field", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.client.policy = manifest.client.policy;
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.client fields do not match schema/],
+    ["empty policies", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest, { applicationIds: [] }), privateKey);
+    }, /must contain 1 to 16 application policies/],
+    ["too many policies", async ({ root, manifest, privateKey }) => {
+      const applicationIds = Array.from({ length: 17 }, (_, index) => `com.example.app${index}`);
+      await writeSignedManifestV2(root, manifestV2For(manifest, { applicationIds }), privateKey);
+    }, /must contain 1 to 16 application policies/],
+    ["invalid application ID", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest, { applicationIds: ["../etc"] }), privateKey);
+    }, /is not a valid application ID/],
+    ["single-segment application ID", async ({ root, manifest, privateKey }) => {
+      await writeSignedManifestV2(root, manifestV2For(manifest, { applicationIds: ["alpha"] }), privateKey);
+    }, /is not a valid application ID/],
+    ["unknown policy key", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.client.policies[APPLICATION_IDS[0]].extra = true;
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.client\.policies\.com\.example\.alpha fields do not match schema/],
+    ["invalid per-application policy", async ({ root, manifest, privateKey }) => {
+      const value = manifestV2For(manifest);
+      value.client.policies[APPLICATION_IDS[1]].mode = "NOTICE";
+      await writeSignedManifestV2(root, value, privateKey);
+    }, /manifest-v2\.json\.client\.policies\.com\.example\.beta\.NOTICE requires title and message/],
+    ["duplicate application ID", async ({ root, manifest, privateKey }) => {
+      const raw = JSON.stringify(manifestV2For(manifest, { applicationIds: ["com.example.alpha"] }))
+        .replace('"policies":{', '"policies":{"com.example.alpha":null,');
+      await writeSignedManifestV2(root, raw, privateKey);
+    }, /duplicate key 'com\.example\.alpha'/],
+  ];
+  for (const [name, mutate, expected] of cases) {
+    await withFixture(async (item) => {
+      await mutate(item);
+      await assert.rejects(
+        validatePublicContentDelivery(item.root, { publicKeys: { [KEY_ID]: item.publicKey } }),
+        expected,
+        name,
+      );
+    });
+  }
+});
+
+test("enforces companion manifest transitions: no removal, no silent change, per-app revisions", async () => {
+  async function transitionWith(oldTree, { sequence, mutate = () => {}, mutateV2 = () => {}, dropV2 = false }) {
+    const newRoot = await mkdtemp(join(tmpdir(), "nutcx-public-content-copy-"));
+    try {
+      await cp(oldTree.root, newRoot, { recursive: true });
+      const changed = structuredClone(oldTree.manifest);
+      if (sequence !== undefined) changed.publicationSequence = sequence;
+      mutate(changed);
+      await writeSignedManifest(newRoot, changed, oldTree.privateKey);
+      if (dropV2) {
+        await rm(join(newRoot, "manifest-v2.json"));
+        await rm(join(newRoot, "manifest-v2.sig"));
+      } else {
+        const companion = manifestV2For(changed);
+        mutateV2(companion);
+        await writeSignedManifestV2(newRoot, companion, oldTree.privateKey);
+      }
+      return await validatePublicContentTransition(oldTree.root, newRoot, {
+        publicKeys: { [KEY_ID]: oldTree.publicKey },
+      });
+    } finally {
+      await rm(newRoot, { recursive: true, force: true });
+    }
+  }
+
+  await withFixture(async (oldTree) => {
+    await writeSignedManifestV2(oldTree.root, manifestV2For(oldTree.manifest), oldTree.privateKey);
+
+    const unchanged = await transitionWith(oldTree, {});
+    assert.equal(unchanged.manifestChanged, false);
+
+    const bumped = await transitionWith(oldTree, {
+      sequence: 8,
+      mutateV2: (companion) => {
+        companion.client.policies[APPLICATION_IDS[0]].revision = 8;
+        companion.client.policies[APPLICATION_IDS[0]].policyId = "alpha-8";
+      },
+    });
+    assert.equal(bumped.manifestChanged, true);
+    assert.equal(bumped.applicationPolicyCount, APPLICATION_IDS.length);
+
+    await assert.rejects(transitionWith(oldTree, { dropV2: true }), /manifest-v2\.json may not be removed/);
+    await assert.rejects(
+      transitionWith(oldTree, {
+        mutateV2: (companion) => {
+          companion.client.policies[APPLICATION_IDS[0]].revision = 8;
+          companion.client.policies[APPLICATION_IDS[0]].policyId = "alpha-8";
+        },
+      }),
+      /manifest-v2\.json changed without a new manifest\.json publication/,
+    );
+    await assert.rejects(
+      transitionWith(oldTree, {
+        sequence: 8,
+        mutateV2: (companion) => { companion.client.policies[APPLICATION_IDS[0]].revision = 6; },
+      }),
+      /revision rollback is not allowed for com\.example\.alpha/,
+    );
+    await assert.rejects(
+      transitionWith(oldTree, {
+        sequence: 8,
+        mutateV2: (companion) => { companion.client.policies[APPLICATION_IDS[1]].policyId = "beta-changed"; },
+      }),
+      /client policy for com\.example\.beta changed without increasing its revision/,
+    );
+  });
 });
 
 test("rejects unsafe, mutable, and version-mismatched content paths", async () => {

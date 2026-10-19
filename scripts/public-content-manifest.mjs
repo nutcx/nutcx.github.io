@@ -20,6 +20,8 @@ import {
 
 const MANIFEST_NAME = "manifest.json";
 const SIGNATURE_NAME = "manifest.sig";
+const MANIFEST_V2_NAME = "manifest-v2.json";
+const SIGNATURE_V2_NAME = "manifest-v2.sig";
 const VERSIONS_NAME = "versions";
 const LEGACY_NAME = "legacy";
 const MAX_LEGACY_BYTES = 8 * 1024 * 1024 + 16;
@@ -28,6 +30,8 @@ const BUNDLE_DOMAIN = Buffer.from("MLBYTES-SIGNATURE-V1", "ascii");
 const SIGNATURE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x53, 0x49, 0x47, 0, 0]);
 const BUNDLE_MAGIC = Buffer.from([0x4d, 0x4c, 0x42, 0x59, 0x54, 0x45, 0x53, 0]);
 const MAX_MANIFEST_BYTES = 64 * 1024;
+const MAX_APPLICATION_POLICIES = 16;
+const MAX_APPLICATION_ID_LENGTH = 128;
 const MAX_CONTENT_BYTES = 40 * 1024 * 1024;
 const MAX_DIRECTORY_BYTES = 64 * 1024;
 const MAX_ENTRY_BYTES = 8 * 1024 * 1024;
@@ -62,6 +66,7 @@ const ROOT_FIELDS = [
 ];
 const CONTENT_FIELDS = ["version", "path", "sha256", "sizeBytes"];
 const CLIENT_FIELDS = ["policy", "config", "features"];
+const CLIENT_V2_FIELDS = ["policies", "config", "features"];
 const POLICY_FIELDS = [
   "schemaVersion",
   "policyId",
@@ -351,8 +356,7 @@ function validateAction(value, label) {
   return value;
 }
 
-function validatePolicy(value) {
-  const label = "manifest.json.client.policy";
+function validatePolicy(value, label = "manifest.json.client.policy") {
   exactKeys(value, label, POLICY_FIELDS);
   if (integer(value.schemaVersion, `${label}.schemaVersion`, 1n, 1n) !== 1n) fail("unreachable");
   validateId(value.policyId, `${label}.policyId`);
@@ -443,8 +447,7 @@ function normalizedCdnOrigin(value, label) {
   return normalized;
 }
 
-function validateConfig(value) {
-  const label = "manifest.json.client.config";
+function validateConfig(value, label = "manifest.json.client.config") {
   exactKeys(value, label, CONFIG_FIELDS);
   integer(value.schemaVersion, `${label}.schemaVersion`, 1n, 1n);
   validateId(value.configId, `${label}.configId`);
@@ -466,8 +469,7 @@ function validateConfig(value) {
   return revision;
 }
 
-function validateFeatures(value) {
-  const label = "manifest.json.client.features";
+function validateFeatures(value, label = "manifest.json.client.features") {
   const entries = Object.entries(object(value, label));
   if (entries.length > 64) fail(`${label} must contain at most 64 entries`);
   for (const [key, enabled] of entries) {
@@ -562,6 +564,60 @@ function validateManifestModel(root) {
     configRevision,
     configSemantic: semanticFingerprint(root.client.config),
   };
+}
+
+function validateApplicationId(value, label) {
+  if (typeof value !== "string"
+      || value.length > MAX_APPLICATION_ID_LENGTH
+      || !/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(value)) {
+    fail(`${label} is not a valid application ID`);
+  }
+  return value;
+}
+
+/**
+ * Validates the optional schema-2 companion manifest. It must describe the same
+ * publication as manifest.json and only adds per-application client policies.
+ */
+function validateManifestV2Model(root, manifest) {
+  const label = MANIFEST_V2_NAME;
+  exactKeys(root, label, ROOT_FIELDS);
+  integer(root.schemaVersion, `${label}.schemaVersion`, 2n, 2n);
+  const sameAsV1 = (field) => {
+    if (semanticFingerprint(root[field]) !== semanticFingerprint(manifest[field])) {
+      fail(`${label}.${field} must match ${MANIFEST_NAME} exactly`);
+    }
+  };
+  sameAsV1("publicationSequence");
+  sameAsV1("channel");
+  sameAsV1("publishedAt");
+  sameAsV1("content");
+
+  exactKeys(root.client, `${label}.client`, CLIENT_V2_FIELDS);
+  validateConfig(root.client.config, `${label}.client.config`);
+  validateFeatures(root.client.features, `${label}.client.features`);
+  if (semanticFingerprint(root.client.config) !== semanticFingerprint(manifest.client.config)) {
+    fail(`${label}.client.config must match ${MANIFEST_NAME} exactly`);
+  }
+  if (semanticFingerprint(root.client.features) !== semanticFingerprint(manifest.client.features)) {
+    fail(`${label}.client.features must match ${MANIFEST_NAME} exactly`);
+  }
+
+  const policiesLabel = `${label}.client.policies`;
+  const entries = Object.entries(object(root.client.policies, policiesLabel));
+  if (entries.length < 1 || entries.length > MAX_APPLICATION_POLICIES) {
+    fail(`${policiesLabel} must contain 1 to ${MAX_APPLICATION_POLICIES} application policies`);
+  }
+  const applicationPolicies = new Map();
+  for (const [applicationId, policy] of entries) {
+    validateApplicationId(applicationId, `${policiesLabel} key '${applicationId}'`);
+    const policyLabel = `${policiesLabel}.${applicationId}`;
+    applicationPolicies.set(applicationId, Object.freeze({
+      revision: validatePolicy(policy, policyLabel),
+      semantic: semanticFingerprint(policy),
+    }));
+  }
+  return applicationPolicies;
 }
 
 function parseSignatureBlock(bytes, label = SIGNATURE_NAME) {
@@ -665,9 +721,15 @@ async function inspectAllowlistedTree(rootRealPath) {
   const rootEntries = await readdir(rootRealPath, { withFileTypes: true });
   const legacyPresent = rootEntries.some((entry) => entry.name === LEGACY_NAME);
   const clientVersionPresent = rootEntries.some((entry) => entry.name === CLIENT_VERSION_NAME);
+  const manifestV2Present = rootEntries.some((entry) => entry.name === MANIFEST_V2_NAME);
+  const signatureV2Present = rootEntries.some((entry) => entry.name === SIGNATURE_V2_NAME);
+  if (manifestV2Present !== signatureV2Present) {
+    fail(`${MANIFEST_V2_NAME} and ${SIGNATURE_V2_NAME} must be published together`);
+  }
   exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME,
     ...(legacyPresent ? [LEGACY_NAME] : []),
-    ...(clientVersionPresent ? [CLIENT_VERSION_NAME] : [])], "public content root");
+    ...(clientVersionPresent ? [CLIENT_VERSION_NAME] : []),
+    ...(manifestV2Present ? [MANIFEST_V2_NAME, SIGNATURE_V2_NAME] : [])], "public content root");
 
   if (clientVersionPresent) {
     const path = resolve(rootRealPath, CLIENT_VERSION_NAME);
@@ -688,12 +750,13 @@ async function inspectAllowlistedTree(rootRealPath) {
     }
   }
 
+  const maximumSignatureBytes = SIGNATURE_PREFIX_BYTES + MAX_KEY_ID_BYTES + ED25519_SIGNATURE_BYTES;
   await regularFile(resolve(rootRealPath, MANIFEST_NAME), MANIFEST_NAME, MAX_MANIFEST_BYTES);
-  await regularFile(
-    resolve(rootRealPath, SIGNATURE_NAME),
-    SIGNATURE_NAME,
-    SIGNATURE_PREFIX_BYTES + MAX_KEY_ID_BYTES + ED25519_SIGNATURE_BYTES,
-  );
+  await regularFile(resolve(rootRealPath, SIGNATURE_NAME), SIGNATURE_NAME, maximumSignatureBytes);
+  if (manifestV2Present) {
+    await regularFile(resolve(rootRealPath, MANIFEST_V2_NAME), MANIFEST_V2_NAME, MAX_MANIFEST_BYTES);
+    await regularFile(resolve(rootRealPath, SIGNATURE_V2_NAME), SIGNATURE_V2_NAME, maximumSignatureBytes);
+  }
   const versionsPath = resolve(rootRealPath, VERSIONS_NAME);
   await regularDirectory(versionsPath, VERSIONS_NAME);
 
@@ -715,7 +778,7 @@ async function inspectAllowlistedTree(rootRealPath) {
     await regularFile(absolutePath, contentPath, MAX_CONTENT_BYTES);
     versionFiles.set(contentPath, absolutePath);
   }
-  return { versionFiles, legacyFiles };
+  return { versionFiles, legacyFiles, manifestV2Present };
 }
 
 async function hashFile(path, label) {
@@ -998,6 +1061,41 @@ async function validateLegacyFiles(legacyFiles, entries) {
   }
 }
 
+/**
+ * Reads one signed pointer file, verifies its detached MLBSIG block over the
+ * exact bytes, and strictly parses the authenticated JSON.
+ */
+async function readSignedManifest(rootRealPath, manifestName, signatureName, publicKeys) {
+  const manifestBytes = await readFile(resolve(rootRealPath, manifestName));
+  const signatureBytes = await readFile(resolve(rootRealPath, signatureName));
+  if (manifestBytes.length >= 3
+      && manifestBytes[0] === 0xef
+      && manifestBytes[1] === 0xbb
+      && manifestBytes[2] === 0xbf) {
+    fail(`${manifestName} must not contain a UTF-8 BOM`);
+  }
+
+  const signature = parseSignatureBlock(signatureBytes, signatureName);
+  const key = trustedKey(publicKeys, signature.keyId, signatureName);
+  const signed = Buffer.concat([
+    MANIFEST_DOMAIN,
+    Buffer.from([0]),
+    manifestBytes,
+    signature.signedPrefix,
+  ]);
+  if (!verifyEd25519(null, signed, key, signature.signature)) {
+    fail(`${signatureName} does not authenticate the exact ${manifestName} bytes`);
+  }
+
+  let manifestText;
+  try {
+    manifestText = new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes);
+  } catch (error) {
+    fail(`${manifestName} is not valid UTF-8`, { cause: error });
+  }
+  return { manifestBytes, signature, manifest: strictJsonParse(manifestText, { label: manifestName }) };
+}
+
 async function validateDeliveryInternal(rootDirectory, publicKeys) {
   const requestedRoot = resolve(rootDirectory);
   let rootDetails;
@@ -1011,38 +1109,21 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
   }
   const rootRealPath = await realpath(requestedRoot);
   const allowlisted = await inspectAllowlistedTree(rootRealPath);
-  const manifestPath = resolve(rootRealPath, MANIFEST_NAME);
-  const signaturePath = resolve(rootRealPath, SIGNATURE_NAME);
 
-  const manifestBytes = await readFile(manifestPath);
-  const signatureBytes = await readFile(signaturePath);
-  if (manifestBytes.length >= 3
-      && manifestBytes[0] === 0xef
-      && manifestBytes[1] === 0xbb
-      && manifestBytes[2] === 0xbf) {
-    fail("manifest.json must not contain a UTF-8 BOM");
-  }
-
-  const signature = parseSignatureBlock(signatureBytes);
-  const key = trustedKey(publicKeys, signature.keyId);
-  const signed = Buffer.concat([
-    MANIFEST_DOMAIN,
-    Buffer.from([0]),
-    manifestBytes,
-    signature.signedPrefix,
-  ]);
-  if (!verifyEd25519(null, signed, key, signature.signature)) {
-    fail("manifest.sig does not authenticate the exact manifest.json bytes");
-  }
-
-  let manifestText;
-  try {
-    manifestText = new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes);
-  } catch (error) {
-    fail("manifest.json is not valid UTF-8", { cause: error });
-  }
-  const manifest = strictJsonParse(manifestText);
+  const { manifestBytes, signature, manifest } = await readSignedManifest(
+    rootRealPath, MANIFEST_NAME, SIGNATURE_NAME, publicKeys,
+  );
   const metadata = validateManifestModel(manifest);
+
+  let manifestV2Bytes = null;
+  let applicationPolicies = null;
+  if (allowlisted.manifestV2Present) {
+    const companion = await readSignedManifest(
+      rootRealPath, MANIFEST_V2_NAME, SIGNATURE_V2_NAME, publicKeys,
+    );
+    manifestV2Bytes = companion.manifestBytes;
+    applicationPolicies = validateManifestV2Model(companion.manifest, manifest);
+  }
   const versionFiles = await hashVersionFiles(allowlisted.versionFiles);
   const referenced = versionFiles.get(metadata.path);
   if (!referenced) fail(`referenced content file is missing: ${metadata.path}`);
@@ -1069,8 +1150,10 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     documentSignatureKeyId: document.signatureKeyId,
     minimumAppVersionCode: document.minimumAppVersionCode,
     legacyFileCount: allowlisted.legacyFiles.size,
+    applicationPolicyCount: applicationPolicies?.size ?? 0,
   });
   return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0,
+    manifestV2Bytes, applicationPolicies,
     summary, documentEntries: document.entries,
     clientFeatures: Object.freeze({ ...manifest.client.features }) };
 }
@@ -1141,6 +1224,26 @@ export async function validatePublicContentTransition(
   const manifestChanged = !previous.manifestBytes.equals(current.manifestBytes);
   if (previous.legacyPresent && !current.legacyPresent) {
     fail("the published legacy directory may not be removed");
+  }
+  if (previous.manifestV2Bytes && !current.manifestV2Bytes) {
+    fail(`the published ${MANIFEST_V2_NAME} may not be removed`);
+  }
+  if (current.manifestV2Bytes
+      && !manifestChanged
+      && !previous.manifestV2Bytes?.equals(current.manifestV2Bytes)) {
+    fail(`${MANIFEST_V2_NAME} changed without a new ${MANIFEST_NAME} publication`);
+  }
+  if (previous.applicationPolicies && current.applicationPolicies) {
+    for (const [applicationId, before] of previous.applicationPolicies) {
+      const after = current.applicationPolicies.get(applicationId);
+      if (!after) continue;
+      if (after.revision < before.revision) {
+        fail(`client policy revision rollback is not allowed for ${applicationId}`);
+      }
+      if (after.revision === before.revision && after.semantic !== before.semantic) {
+        fail(`client policy for ${applicationId} changed without increasing its revision`);
+      }
+    }
   }
   if (manifestChanged) {
     if (current.metadata.publicationSequence <= previous.metadata.publicationSequence) {

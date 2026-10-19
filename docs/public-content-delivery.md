@@ -9,6 +9,8 @@ already-signed `1001.5` document. Future content releases must use a version gre
 public/content/
 |-- manifest.json
 |-- manifest.sig
+|-- manifest-v2.json                (optional, signed schema-2 companion with per-app policies)
+|-- manifest-v2.sig                 (required together with manifest-v2.json)
 |-- clientversion.json              (optional, generated version-service hint)
 |-- legacy/                         (optional before its first publication)
 |   |-- 533271041.mlbytes            (skins)
@@ -38,11 +40,41 @@ the declared size is 1 through 41,943,040 bytes. Publishing a new manifest must 
 existing version path with different bytes.
 
 No other public content files are permitted. The root allowlist is `manifest.json`,
-`manifest.sig`, `versions/`, the optional `legacy/`, and optional `clientversion.json`;
+`manifest.sig`, `versions/`, the optional `legacy/`, the optional signed `manifest-v2.json` +
+`manifest-v2.sig` pair, and optional `clientversion.json`;
 each canonical version directory contains exactly one regular, non-symlink `Document.mlbytes` file.
 The client-version hint has its own bounded schema and is not a signed catalog or client configuration.
 Raw JSON databases, temporary files, other sidecars, and nested assets make validation fail.
 See [Client version lookup](client-version-lookup.md) for its workflow configuration and recovery-only purpose.
+
+## Schema-2 companion manifest
+
+Newer clients that are installed under more than one Android application ID read
+`manifest-v2.json`. It is an optional companion to `manifest.json`, never a replacement:
+schema-1 clients and the website catalog keep reading `manifest.json`, and nothing is
+added to that signed schema. The companion must be published together with
+`manifest-v2.sig`; one file without the other fails validation.
+
+`manifest-v2.json` has the same size bound, the same root fields, and the same strict
+parsing as `manifest.json`, with these differences:
+
+```text
+schemaVersion:       2
+client:              { policies, config, features }
+client.policies:     { "<application-id>": ClientPolicy, ... }
+```
+
+`publicationSequence`, `channel`, `publishedAt`, `content`, `client.config`, and
+`client.features` must equal the values in `manifest.json` exactly. `client.policies`
+contains 1 to 16 entries keyed by Android application ID (dot-separated identifier
+segments, at most 128 characters); each value is a complete schema-1 ClientPolicy with the
+same mode constraints as `client.policy`.
+
+`manifest-v2.sig` is the same MLBSIG v1 Ed25519 block, signed with the same trusted key over
+the `MLBYTES-MANIFEST-V1` domain and the exact `manifest-v2.json` bytes. Transitions treat
+the companion like the primary pointer: once published it may not be removed, it may only
+change in a publication that also changes `manifest.json` (so the sequence increases), and a
+per-application policy may not roll back its revision or change without increasing it.
 
 ## Legacy compatibility files
 
