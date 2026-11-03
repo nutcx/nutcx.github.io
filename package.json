@@ -16,7 +16,8 @@
     "validate": "node scripts/validate-site.mjs",
     "test:content-delivery": "node scripts/test-public-content-manifest.mjs",
     "test:client-version": "node --test scripts/test-client-version.mjs",
-    "test:app-protection": "node scripts/sign-app-protection-policies.mjs --verify-only && node --test scripts/test-app-protection-policy.mjs",
+    "prepare:app-policy": "node scripts/prepare-app-policy-release.mjs",
+    "test:app-protection": "node scripts/sign-app-protection-policies.mjs --verify-only && node --test scripts/test-app-protection-policy.mjs scripts/test-app-policy-release.mjs",
     "test:discord": "node --test scripts/test-discord-content-diff.mjs scripts/test-discord-comparison-image.mjs scripts/test-discord-image-fetch.mjs scripts/test-discord-content-notifier.mjs",
     "test:featured": "node scripts/test-featured-selection.mjs && node scripts/test-featured-pages.mjs",
     "test": "pnpm build && pnpm validate && node scripts/test-item-links.mjs && node scripts/test-retirements.mjs && node scripts/test-analytics.mjs && node scripts/test-search-readiness.mjs && node scripts/test-catalog-browsing.mjs && pnpm test:featured && pnpm test:content-delivery && pnpm test:client-version && pnpm test:discord && pnpm test:app-protection"
