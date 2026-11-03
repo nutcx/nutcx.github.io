@@ -74,6 +74,8 @@ jobs:
 
       - name: Validate signed public content delivery
         run: |
+          pnpm test:app-protection
+          node scripts/sign-app-protection-policies.mjs --verify-only --previous-root "$NUTCX_PREVIOUS_CONTENT_ROOT"
           pnpm test:client-version
           pnpm test:discord
           pnpm test:content-delivery

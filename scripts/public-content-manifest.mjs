@@ -17,6 +17,7 @@ import {
   MAX_CLIENT_VERSION_HINT_BYTES,
   parseClientVersionHint,
 } from "./client-version.mjs";
+import { PACKAGES as PROTECTION_PACKAGES, verifyPolicy } from "./app-protection-policy.mjs";
 
 const MANIFEST_NAME = "manifest.json";
 const SIGNATURE_NAME = "manifest.sig";
@@ -721,6 +722,7 @@ async function inspectAllowlistedTree(rootRealPath) {
   const rootEntries = await readdir(rootRealPath, { withFileTypes: true });
   const legacyPresent = rootEntries.some((entry) => entry.name === LEGACY_NAME);
   const clientVersionPresent = rootEntries.some((entry) => entry.name === CLIENT_VERSION_NAME);
+  const protectionPresent = rootEntries.some((entry) => entry.name === "protection");
   const manifestV2Present = rootEntries.some((entry) => entry.name === MANIFEST_V2_NAME);
   const signatureV2Present = rootEntries.some((entry) => entry.name === SIGNATURE_V2_NAME);
   if (manifestV2Present !== signatureV2Present) {
@@ -728,6 +730,7 @@ async function inspectAllowlistedTree(rootRealPath) {
   }
   exactDirectoryEntries(rootEntries, [MANIFEST_NAME, SIGNATURE_NAME, VERSIONS_NAME,
     ...(legacyPresent ? [LEGACY_NAME] : []),
+    ...(protectionPresent ? ["protection"] : []),
     ...(clientVersionPresent ? [CLIENT_VERSION_NAME] : []),
     ...(manifestV2Present ? [MANIFEST_V2_NAME, SIGNATURE_V2_NAME] : [])], "public content root");
 
@@ -735,6 +738,18 @@ async function inspectAllowlistedTree(rootRealPath) {
     const path = resolve(rootRealPath, CLIENT_VERSION_NAME);
     await regularFile(path, CLIENT_VERSION_NAME, MAX_CLIENT_VERSION_HINT_BYTES);
     parseClientVersionHint(await readFile(path));
+  }
+
+  if (protectionPresent) {
+    const directory = resolve(rootRealPath, "protection");
+    await regularDirectory(directory, "protection");
+    exactDirectoryEntries(await readdir(directory, { withFileTypes: true }),
+      PROTECTION_PACKAGES.map((pkg) => `${pkg}.json`), "protection");
+    for (const pkg of PROTECTION_PACKAGES) {
+      const path = resolve(directory, `${pkg}.json`);
+      await regularFile(path, `protection/${pkg}.json`, 64 * 1024);
+      verifyPolicy(await readFile(path), pkg);
+    }
   }
 
   const legacyFiles = new Map();
