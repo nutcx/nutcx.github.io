@@ -4,7 +4,7 @@
     {
       "schemaVersion": 1,
       "packageName": "com.nutcx.tools",
-      "revision": 3,
+      "revision": 7,
       "releases": [
         {
           "versionCode": 61,
@@ -53,13 +53,77 @@
             "appOpen": "ca-app-pub-4163787779715408/2415550938"
           },
           "adSettingsSha256": "c4f102ff3d7fb1294f9db24fc184ffc7927e3ccf7c2097057578f2e2d6e8963c"
+        },
+        {
+          "versionCode": 64,
+          "certificateSha256": [
+            "dbc955c7ae55ef2f5223ea16d5a5f811dac22746925d103669a266307a2bf3cd",
+            "e5c4ecb0b8b5a03f5270503c0a0ecd28e22c8a36dd0f08ac3604ff38ad2f2ea3",
+            "6cf2a235ab1f2587cfcd401181a6b763623e2eaa539fbfb6360f493862ced2c7",
+            "4377da764a8c843b6303cd9cfd5379b3311c14c7fb8597ef82dc6bc57af1122b"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~1702174417",
+            "banner": "ca-app-pub-4163787779715408/9396831600",
+            "interstitial": "ca-app-pub-4163787779715408/3437927916",
+            "appOpen": "ca-app-pub-4163787779715408/2415550938"
+          },
+          "adSettingsSha256": "c4f102ff3d7fb1294f9db24fc184ffc7927e3ccf7c2097057578f2e2d6e8963c"
+        },
+        {
+          "versionCode": 65,
+          "certificateSha256": [
+            "dbc955c7ae55ef2f5223ea16d5a5f811dac22746925d103669a266307a2bf3cd",
+            "e5c4ecb0b8b5a03f5270503c0a0ecd28e22c8a36dd0f08ac3604ff38ad2f2ea3",
+            "6cf2a235ab1f2587cfcd401181a6b763623e2eaa539fbfb6360f493862ced2c7",
+            "4377da764a8c843b6303cd9cfd5379b3311c14c7fb8597ef82dc6bc57af1122b"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~1702174417",
+            "banner": "ca-app-pub-4163787779715408/9396831600",
+            "interstitial": "ca-app-pub-4163787779715408/3437927916",
+            "appOpen": "ca-app-pub-4163787779715408/2415550938"
+          },
+          "adSettingsSha256": "c4f102ff3d7fb1294f9db24fc184ffc7927e3ccf7c2097057578f2e2d6e8963c"
+        },
+        {
+          "versionCode": 66,
+          "certificateSha256": [
+            "dbc955c7ae55ef2f5223ea16d5a5f811dac22746925d103669a266307a2bf3cd",
+            "e5c4ecb0b8b5a03f5270503c0a0ecd28e22c8a36dd0f08ac3604ff38ad2f2ea3",
+            "6cf2a235ab1f2587cfcd401181a6b763623e2eaa539fbfb6360f493862ced2c7",
+            "4377da764a8c843b6303cd9cfd5379b3311c14c7fb8597ef82dc6bc57af1122b"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~1702174417",
+            "banner": "ca-app-pub-4163787779715408/9396831600",
+            "interstitial": "ca-app-pub-4163787779715408/3437927916",
+            "appOpen": "ca-app-pub-4163787779715408/2415550938"
+          },
+          "adSettingsSha256": "c4f102ff3d7fb1294f9db24fc184ffc7927e3ccf7c2097057578f2e2d6e8963c"
+        },
+        {
+          "versionCode": 67,
+          "certificateSha256": [
+            "dbc955c7ae55ef2f5223ea16d5a5f811dac22746925d103669a266307a2bf3cd",
+            "e5c4ecb0b8b5a03f5270503c0a0ecd28e22c8a36dd0f08ac3604ff38ad2f2ea3",
+            "6cf2a235ab1f2587cfcd401181a6b763623e2eaa539fbfb6360f493862ced2c7",
+            "4377da764a8c843b6303cd9cfd5379b3311c14c7fb8597ef82dc6bc57af1122b"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~1702174417",
+            "banner": "ca-app-pub-4163787779715408/9396831600",
+            "interstitial": "ca-app-pub-4163787779715408/3437927916",
+            "appOpen": "ca-app-pub-4163787779715408/2415550938"
+          },
+          "adSettingsSha256": "c4f102ff3d7fb1294f9db24fc184ffc7927e3ccf7c2097057578f2e2d6e8963c"
         }
       ]
     },
     {
       "schemaVersion": 1,
       "packageName": "com.kaizokuo.gfx",
-      "revision": 3,
+      "revision": 7,
       "releases": [
         {
           "versionCode": 34,
@@ -89,6 +153,58 @@
         },
         {
           "versionCode": 36,
+          "certificateSha256": [
+            "4264c5d76d588ef4d95d8c98a2b1fae9ae478140e0597021f40413a702c4f331",
+            "0cd3131bb48aa9f2eb36f05d648eb2830e184e5201dd1c54716e1cef37fa2fcc"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~8718484222",
+            "interstitial": "ca-app-pub-4163787779715408/8854215595",
+            "appOpen": "ca-app-pub-4163787779715408/2480378939"
+          },
+          "adSettingsSha256": "82f67ca0cc4719cbec305e0ab957debfe8b0150fcbc7252999241de5fbfe3546"
+        },
+        {
+          "versionCode": 37,
+          "certificateSha256": [
+            "4264c5d76d588ef4d95d8c98a2b1fae9ae478140e0597021f40413a702c4f331",
+            "0cd3131bb48aa9f2eb36f05d648eb2830e184e5201dd1c54716e1cef37fa2fcc"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~8718484222",
+            "interstitial": "ca-app-pub-4163787779715408/8854215595",
+            "appOpen": "ca-app-pub-4163787779715408/2480378939"
+          },
+          "adSettingsSha256": "82f67ca0cc4719cbec305e0ab957debfe8b0150fcbc7252999241de5fbfe3546"
+        },
+        {
+          "versionCode": 38,
+          "certificateSha256": [
+            "4264c5d76d588ef4d95d8c98a2b1fae9ae478140e0597021f40413a702c4f331",
+            "0cd3131bb48aa9f2eb36f05d648eb2830e184e5201dd1c54716e1cef37fa2fcc"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~8718484222",
+            "interstitial": "ca-app-pub-4163787779715408/8854215595",
+            "appOpen": "ca-app-pub-4163787779715408/2480378939"
+          },
+          "adSettingsSha256": "82f67ca0cc4719cbec305e0ab957debfe8b0150fcbc7252999241de5fbfe3546"
+        },
+        {
+          "versionCode": 39,
+          "certificateSha256": [
+            "4264c5d76d588ef4d95d8c98a2b1fae9ae478140e0597021f40413a702c4f331",
+            "0cd3131bb48aa9f2eb36f05d648eb2830e184e5201dd1c54716e1cef37fa2fcc"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~8718484222",
+            "interstitial": "ca-app-pub-4163787779715408/8854215595",
+            "appOpen": "ca-app-pub-4163787779715408/2480378939"
+          },
+          "adSettingsSha256": "82f67ca0cc4719cbec305e0ab957debfe8b0150fcbc7252999241de5fbfe3546"
+        },
+        {
+          "versionCode": 40,
           "certificateSha256": [
             "4264c5d76d588ef4d95d8c98a2b1fae9ae478140e0597021f40413a702c4f331",
             "0cd3131bb48aa9f2eb36f05d648eb2830e184e5201dd1c54716e1cef37fa2fcc"
@@ -105,7 +221,7 @@
     {
       "schemaVersion": 1,
       "packageName": "com.mobalauncher.io",
-      "revision": 3,
+      "revision": 7,
       "releases": [
         {
           "versionCode": 34,
@@ -137,6 +253,62 @@
         },
         {
           "versionCode": 36,
+          "certificateSha256": [
+            "25e52c9799eb767b085237e2ce898b616213d0bc6281566671448da69b53c4cb",
+            "76c58fb1584040496d8b6092207e961917ce6a5523fbfb490ac7230273dbd414"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~2103743137",
+            "interstitial": "ca-app-pub-4163787779715408/5873037142",
+            "appOpen": "ca-app-pub-4163787779715408/9103047163",
+            "rewardedInterstitial": "ca-app-pub-4163787779715408/3933269519"
+          },
+          "adSettingsSha256": "263d1216039c77b9409be6dc37508519603aadc42fd113c0f08155024658eb10"
+        },
+        {
+          "versionCode": 37,
+          "certificateSha256": [
+            "25e52c9799eb767b085237e2ce898b616213d0bc6281566671448da69b53c4cb",
+            "76c58fb1584040496d8b6092207e961917ce6a5523fbfb490ac7230273dbd414"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~2103743137",
+            "interstitial": "ca-app-pub-4163787779715408/5873037142",
+            "appOpen": "ca-app-pub-4163787779715408/9103047163",
+            "rewardedInterstitial": "ca-app-pub-4163787779715408/3933269519"
+          },
+          "adSettingsSha256": "263d1216039c77b9409be6dc37508519603aadc42fd113c0f08155024658eb10"
+        },
+        {
+          "versionCode": 38,
+          "certificateSha256": [
+            "25e52c9799eb767b085237e2ce898b616213d0bc6281566671448da69b53c4cb",
+            "76c58fb1584040496d8b6092207e961917ce6a5523fbfb490ac7230273dbd414"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~2103743137",
+            "interstitial": "ca-app-pub-4163787779715408/5873037142",
+            "appOpen": "ca-app-pub-4163787779715408/9103047163",
+            "rewardedInterstitial": "ca-app-pub-4163787779715408/3933269519"
+          },
+          "adSettingsSha256": "263d1216039c77b9409be6dc37508519603aadc42fd113c0f08155024658eb10"
+        },
+        {
+          "versionCode": 39,
+          "certificateSha256": [
+            "25e52c9799eb767b085237e2ce898b616213d0bc6281566671448da69b53c4cb",
+            "76c58fb1584040496d8b6092207e961917ce6a5523fbfb490ac7230273dbd414"
+          ],
+          "adSettings": {
+            "appId": "ca-app-pub-4163787779715408~2103743137",
+            "interstitial": "ca-app-pub-4163787779715408/5873037142",
+            "appOpen": "ca-app-pub-4163787779715408/9103047163",
+            "rewardedInterstitial": "ca-app-pub-4163787779715408/3933269519"
+          },
+          "adSettingsSha256": "263d1216039c77b9409be6dc37508519603aadc42fd113c0f08155024658eb10"
+        },
+        {
+          "versionCode": 40,
           "certificateSha256": [
             "25e52c9799eb767b085237e2ce898b616213d0bc6281566671448da69b53c4cb",
             "76c58fb1584040496d8b6092207e961917ce6a5523fbfb490ac7230273dbd414"
