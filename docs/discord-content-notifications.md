@@ -5,8 +5,9 @@ after the website successfully deploys. No Android app or Admin update is requir
 
 Keep `DISCORD_WEBHOOK_URL` in this repository's **Actions secrets**. Do not put it in
 Pages files, app configuration, source control, screenshots, or workflow artifacts.
-Only the configuration check and sending step receive the webhook URL; the history lookup uses the built-in
-GitHub token with Actions read permission.
+Only the configuration check, read-only webhook check, and sending step receive the webhook URL.
+The history lookup uses the built-in GitHub token with Actions read permission.
+An invalid webhook fails verification before the workflow records any new announcement intent.
 
 ## What members see
 

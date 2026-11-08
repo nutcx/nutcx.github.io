@@ -136,6 +136,12 @@ jobs:
         if: steps.configured.outputs.enabled == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Verify Discord webhook without posting
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node scripts/discord-content-notifier.mjs verify-webhook
+
       - name: Locate last durable announcement record
         id: history
         if: steps.configured.outputs.enabled == 'true'

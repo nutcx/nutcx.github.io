@@ -216,6 +216,33 @@ test('blocked everyone mention records delivered message without duplicate retry
   assert.equal(result.status, 'complete');
   assert.equal(result.receipts[0].everyoneParsed, false);
 });
+test('webhook verification uses only a read-only request without execution parameters', async () => {
+  let requests = 0;
+  await requireFunction('verifyDiscordWebhook')(
+    'https://discord.com/api/v10/webhooks/123/test-token?thread_id=42&wait=true',
+    { fetchImpl: async (url, options) => {
+      requests++;
+      assert.equal(options.method, 'GET');
+      assert.equal(options.redirect, 'error');
+      assert.equal(url.search, '');
+      return Response.json({ id: '123', type: 1, channel_id: '42' });
+    } });
+  assert.equal(requests, 1);
+});
+
+test('invalid webhook status, payload or network error stays read-only and redacts the URL', async () => {
+  const verify = requireFunction('verifyDiscordWebhook');
+  const webhookUrl = 'https://discord.com/api/webhooks/123/SECRET';
+  for (const [fetchImpl, expected] of [
+    [async () => new Response('SECRET', { status: 404 }), /HTTP 404/],
+    [async () => Response.json({ id: '456', type: 1, channel_id: '42' }), /incoming channel webhook/],
+    [async () => { throw new Error(webhookUrl); }, /could not verify/i],
+  ]) {
+    await assert.rejects(verify(webhookUrl, { fetchImpl }), error =>
+      expected.test(error.message) && !error.message.includes('SECRET'));
+  }
+});
+
 test('wrong webhook host or credentials are rejected without leaking configuration', async () => {
   let requests = 0;
   for (const url of ['http://discord.com/api/webhooks/123/SECRET', 'https://evil.example/api/webhooks/123/SECRET',

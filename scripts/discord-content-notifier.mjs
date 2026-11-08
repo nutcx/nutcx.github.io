@@ -95,6 +95,22 @@ function webhookEndpoint(value) {
   } catch { throw new Error('Invalid Discord webhook configuration.'); }
 }
 
+/** Verify the configured endpoint before an intent can be recorded. */
+export async function verifyDiscordWebhook(webhookUrl, { fetchImpl = globalThis.fetch } = {}) {
+  const endpoint = webhookEndpoint(webhookUrl);
+  endpoint.search = '';
+  let response;
+  try {
+    response = await fetchImpl(endpoint, { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(10_000) });
+  } catch { throw new Error('Discord could not verify the webhook connection.'); }
+  requireValue(response.ok, `Discord webhook verification failed (HTTP ${response.status}). Check DISCORD_WEBHOOK_URL.`);
+  let webhook;
+  try { webhook = await response.json(); } catch { /* No valid webhook object. */ }
+  const id = endpoint.pathname.split('/').at(-2);
+  requireValue(webhook?.id === id && webhook.type === 1 && /^\d+$/.test(webhook.channel_id ?? ''),
+    'Discord did not return an incoming channel webhook.');
+}
+
 /** One POST per message. A timeout is ambiguous, so never automatically retry it. */
 export async function sendDiscordPlan(plan, { webhookUrl, intentRecorded = false,
   fetchImpl = globalThis.fetch, onProgress = async () => {},
@@ -247,7 +263,12 @@ async function send(workDirectory) {
 async function main() {
   const [command, workDirectory, previousDirectory] = process.argv.slice(2);
   if (command === 'locate') return locateState();
-  requireValue(workDirectory, 'Usage: discord-content-notifier.mjs locate | prepare WORK_DIRECTORY [PREVIOUS_DIRECTORY] | send WORK_DIRECTORY');
+  if (command === 'verify-webhook') {
+    await verifyDiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
+    console.log('Discord webhook verified without posting.');
+    return;
+  }
+  requireValue(workDirectory, 'Usage: discord-content-notifier.mjs locate | verify-webhook | prepare WORK_DIRECTORY [PREVIOUS_DIRECTORY] | send WORK_DIRECTORY');
   if (command === 'prepare') return prepare(resolve(workDirectory), previousDirectory);
   if (command === 'send') return send(resolve(workDirectory));
   throw new Error('Unknown Discord notification command.');
