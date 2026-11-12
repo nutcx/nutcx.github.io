@@ -30,9 +30,10 @@ everyone mention, but cannot prove that every member received a push alert.
 
 The notifier reads the **locally verified signed delivery**, not an unsigned database.
 It confirms that the live website serves this deployment's exact manifest before
-announcing it. Archive changes are detected even when item IDs remain unchanged.
-Reordering, timestamps, removed routes, client policy/config-only changes and ordinary
-website rebuilds do not generate content announcements.
+announcing it. A new installable archive URL or a changed archive URL triggers an
+announcement. Cards use the current preview images. Artwork edits, renames,
+reordering, timestamps, removed routes, client policy/config-only changes and
+ordinary website rebuilds stay quiet.
 
 The **first enabled run is silent**: it saves the current catalog as its baseline so
 existing content is not advertised as thousands of new updates. Subsequent runs compare

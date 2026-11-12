@@ -13,6 +13,20 @@ function usableArchive(value) {
   } catch { return false; }
 }
 
+function routeFingerprint({ pairKey, targetKey, kind, group, name, image, sourceName,
+  sourceImage, sourceKey, path, archiveSha256 }) {
+  return sha256(JSON.stringify({ pairKey, targetKey, kind, group, name, image,
+    sourceName, sourceImage, sourceKey, path, archiveSha256 }));
+}
+
+function sameArchive(previous, current) {
+  if (current.archiveSha256 === undefined) return previous.fingerprint === current.fingerprint;
+  if (previous.archiveSha256 !== undefined) return previous.archiveSha256 === current.archiveSha256;
+  // Older history has only the full fingerprint. Check the current archive hash
+  // against the saved presentation to account for any name, image, or path edits.
+  return previous.fingerprint === routeFingerprint({ ...previous, archiveSha256: current.archiveSha256 });
+}
+
 /** Persist semantic replacement identities without retaining archive URLs. */
 export function createCatalogSnapshot({ summary, entries }) {
   const projected = new Map(projectItems(entries).map(item => [item.id, item]));
@@ -26,8 +40,9 @@ export function createCatalogSnapshot({ summary, entries }) {
     const route = {
       pairKey, targetKey, kind: item.kind, group, name: item.name, image: item.image,
       sourceName: source?.name ?? '', sourceImage: source?.image ?? '', sourceKey, path: item.path,
+      archiveSha256: sha256(archive),
     };
-    route.fingerprint = sha256(JSON.stringify({ ...route, archiveSha256: sha256(archive) }));
+    route.fingerprint = routeFingerprint(route);
     routes.set(`${pairKey}:${route.fingerprint}`, route);
   };
   for (const hero of entries['heroes.json'].heroes) {
@@ -89,30 +104,44 @@ export function createCatalogSnapshot({ summary, entries }) {
 function groupPairs(routes) {
   const pairs = new Map();
   for (const route of routes) {
-    if (!pairs.has(route.pairKey)) pairs.set(route.pairKey, []);
-    pairs.get(route.pairKey).push(route);
+    // Legacy targets have no ID independent of their name and image.
+    const key = route.sourceKey.startsWith('preparation:legacy:') ? route.sourceKey : route.pairKey;
+    if (!pairs.has(key)) pairs.set(key, []);
+    pairs.get(key).push(route);
   }
   return pairs;
 }
 
-/** Removed or unchanged routes stay quiet; group changed originals by target variant. */
+function matchRoutes(current, remaining, matches) {
+  const matched = new Set();
+  for (const route of current) {
+    const index = remaining.findIndex(previous => matches(previous, route));
+    if (index < 0) continue;
+    remaining.splice(index, 1);
+    matched.add(route);
+  }
+  return matched;
+}
+
+/** Announce new or changed archive URLs and group changed originals by target variant. */
 export function diffCatalogSnapshots(previous, current) {
   const previousPairs = groupPairs(previous?.routes ?? []);
   const currentPairs = groupPairs(current.routes);
   const changedTargets = new Map();
   for (const [pairKey, routes] of currentPairs) {
     const old = previousPairs.get(pairKey) ?? [];
-    const exact = new Set(old.map(route => route.fingerprint));
-    const remaining = old.filter(route => !routes.some(currentRoute => currentRoute.fingerprint === route.fingerprint));
-    const changed = routes.filter(route => !exact.has(route.fingerprint));
-    // Match named/image variants first, so a new variant cannot consume an archive update.
-    const matched = new Map();
+    const remaining = [...old];
+    const sameVariant = (previous, current) => previous.targetKey === current.targetKey;
+    const exact = matchRoutes(routes, remaining, (previous, current) =>
+      sameVariant(previous, current) && sameArchive(previous, current));
+    const unmatched = routes.filter(route => !exact.has(route));
+    const existingArchives = new Set(unmatched.filter(route => old.some(previous => sameArchive(previous, route))));
+    const changed = unmatched.filter(route => !existingArchives.has(route));
+    // Reserve named archive updates before consuming the old rows of renamed variants.
+    const updated = matchRoutes(changed, remaining, sameVariant);
+    matchRoutes(existingArchives, remaining, sameArchive);
     for (const route of changed) {
-      const index = remaining.findIndex(oldRoute => oldRoute.name === route.name && oldRoute.image === route.image);
-      if (index >= 0) matched.set(route, remaining.splice(index, 1)[0]);
-    }
-    for (const route of changed) {
-      const status = matched.has(route) || remaining.shift() ? 'updated' : 'new';
+      const status = updated.has(route) || remaining.shift() ? 'updated' : 'new';
       let target = changedTargets.get(route.targetKey);
       if (!target) {
         target = { key: route.targetKey, kind: route.kind, group: route.group, name: route.name,

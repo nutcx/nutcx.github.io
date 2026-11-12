@@ -15,6 +15,8 @@ function validateSnapshot(snapshot) {
   for (const route of snapshot.routes) {
     requireValue(['pairKey', 'targetKey', 'kind', 'group', 'name', 'image', 'sourceName', 'sourceImage', 'sourceKey', 'path', 'fingerprint']
       .every(key => typeof route[key] === 'string') && /^[a-f0-9]{64}$/.test(route.fingerprint)
+      && (route.archiveSha256 === undefined
+        || (typeof route.archiveSha256 === 'string' && /^[a-f0-9]{64}$/.test(route.archiveSha256)))
       && /^\/(?:heroes|preparations)\//.test(route.path), 'Invalid notification snapshot route.');
   }
 }

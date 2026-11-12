@@ -65,6 +65,54 @@ test('catalog timestamps and reordering do not create announcements', () => {
   assert.deepEqual(diffCatalogSnapshots(snapshot(previous), snapshot(previous)), []);
 });
 
+test('artwork and name edits stay quiet with current and old notification history', () => {
+  const previous = fixture();
+  const current = structuredClone(previous);
+  const skins = current['heroes.json'].heroes[0].skins;
+  skins[0].landscape = 'https://example.com/new-original.webp';
+  skins[2].landscape = 'https://example.com/new-target.webp';
+  skins[2].name = 'Honor renamed';
+  const variants = current['preparations.json'].types[0].items[0].source.upgrades;
+  variants[1].image = 'https://example.com/new-effect.webp';
+  variants[1].name = 'Big Seal renamed';
+
+  const prior = snapshot(previous);
+  const legacy = JSON.parse(JSON.stringify(prior, (key, value) =>
+    key === 'archiveSha256' ? undefined : value));
+  assert.deepEqual(diffCatalogSnapshots(legacy, snapshot(current)), []);
+  assert.deepEqual(diffCatalogSnapshots(prior, snapshot(current)), []);
+
+  skins[0].source.upgrades[0].archive = 'https://example.com/new-target.zip';
+  const result = diffCatalogSnapshots(legacy, snapshot(current));
+  assert.deepEqual(result.map(({ name, status, image }) => [name, status, image]),
+    [['Honor renamed', 'updated', 'https://example.com/new-target.webp']]);
+  assert.equal(result[0].originals[0].image, 'https://example.com/new-original.webp');
+});
+
+test('a changed archive stays updated when another variant still uses the old archive', () => {
+  const previous = fixture();
+  const variants = previous['preparations.json'].types[0].items[0].source.upgrades;
+  variants[1].archive = variants[0].archive;
+  const current = structuredClone(previous);
+  const currentVariants = current['preparations.json'].types[0].items[0].source.upgrades;
+  currentVariants[1].archive = 'https://example.com/big-v2.zip';
+  currentVariants.push({ ...currentVariants[0], name: 'Another image',
+    image: 'https://example.com/another.webp' });
+  assert.deepEqual(changes(previous, current).map(({ name, status }) => [name, status]),
+    [['Big Seal', 'updated']]);
+});
+
+test('swapping the labels and images of two variants with existing archives stays quiet', () => {
+  const previous = fixture();
+  const current = structuredClone(previous);
+  const [first, second] = current['preparations.json'].types[0].items[0].source.upgrades;
+  first.name = 'Big Seal';
+  first.image = 'https://example.com/big.webp';
+  delete second.name;
+  delete second.image;
+  assert.deepEqual(changes(previous, current), []);
+});
+
 // Catches treating archive-dependent preparation IDs as new target identity.
 test('an archive-only preparation change is updated with only its changed original', () => {
   const previous = fixture();
@@ -235,10 +283,14 @@ test('legacy preparation archive changes retain stable pair identity and updated
       items: [{ name: 'Seal', image: 'https://example.com/seal.webp', archive: 'https://example.com/seal.zip' }] },
   ] } };
   const current = structuredClone(previous);
-  current['preparations.json'].preparations[0].items[0].archive = 'https://example.com/seal-v2.zip';
+  const item = current['preparations.json'].preparations[0].items[0];
+  item.name = 'Seal renamed';
+  item.image = 'https://example.com/new-seal.webp';
+  assert.deepEqual(changes(previous, current), []);
+  item.archive = 'https://example.com/seal-v2.zip';
   const result = changes(previous, current);
   assert.equal(result.length, 1);
-  assert.equal(result[0].name, 'Seal');
+  assert.equal(result[0].name, 'Seal renamed');
   assert.equal(result[0].status, 'updated');
   assert.match(result[0].originals[0].path, /^\/preparations\/1\/[a-f0-9]{8}\/$/);
 });
