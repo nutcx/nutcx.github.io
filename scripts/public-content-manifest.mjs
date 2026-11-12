@@ -44,8 +44,10 @@ const SIGNATURE_PREFIX_BYTES = 16;
 const ED25519_SIGNATURE_BYTES = 64;
 const BUNDLE_HEADER_BYTES = 80;
 const DIRECTORY_RECORD_BYTES = 64;
-const DOCUMENT_SCHEMA_VERSION = 3;
-const MINIMUM_SUPPORTED_APP_VERSION_CODE = 11;
+const MINIMUM_READER_BY_DOCUMENT_SCHEMA = new Map([
+  [3, 11],
+  [4, 41],
+]);
 const MAX_SIGNED_64 = 9_223_372_036_854_775_807n;
 const MAX_UNSIGNED_32 = 4_294_967_295n;
 const MAX_JSON_DEPTH = 32;
@@ -859,12 +861,13 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
     fail("Document.mlbytes has an invalid header size");
   }
   const schemaVersion = bytes.readUInt32LE(20);
-  if (schemaVersion !== DOCUMENT_SCHEMA_VERSION) {
-    fail(`Document.mlbytes must use content schema ${DOCUMENT_SCHEMA_VERSION}`);
+  const minimumReader = MINIMUM_READER_BY_DOCUMENT_SCHEMA.get(schemaVersion);
+  if (minimumReader === undefined) {
+    fail(`Document.mlbytes uses unsupported content schema ${schemaVersion}`);
   }
   const minimumAppVersionCode = bytes.readUInt32LE(24);
-  if (minimumAppVersionCode < MINIMUM_SUPPORTED_APP_VERSION_CODE) {
-    fail(`Document.mlbytes minimum app version code must be at least ${MINIMUM_SUPPORTED_APP_VERSION_CODE}`);
+  if (minimumAppVersionCode < minimumReader) {
+    fail(`Document.mlbytes minimum app version code must be at least ${minimumReader} for content schema ${schemaVersion}`);
   }
   if (bytes.readUInt32LE(28) !== 0) fail("Document.mlbytes header reserved field is nonzero");
 

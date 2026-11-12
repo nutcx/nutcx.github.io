@@ -1073,11 +1073,32 @@ test("checks the referenced file size and SHA-256", async () => {
   });
 });
 
+test("validates a schema-4 catalog with badges and its legacy companions", async () => {
+  const documents = await legacyFixtureDocuments();
+  const badges = [{ name: "Allstar", image: "https://example.org/allstar.webp" }];
+  documents["skin-tags.json"].badges = badges;
+  await withFixture(async (item) => {
+    await writeLegacyFixture(item.root, documents);
+    const { summary, entries } = await loadPublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    });
+    assert.equal(summary.minimumAppVersionCode, 41);
+    assert.equal(summary.legacyFileCount, 5);
+    assert.deepEqual(entries["skin-tags.json"].badges.map((badge) => ({ ...badge })), badges);
+  }, { documentOptions: {
+    schemaVersion: 4,
+    minimumAppVersionCode: 41,
+    entries: entriesForDocuments(documents),
+  } });
+});
+
 test("independently validates the embedded signed MLBytes bundle", async () => {
   const cases = [
     { options: ({ privateKey }) => ({ privateKey, signed: false }), message: /must be signed/ },
-    { options: ({ privateKey }) => ({ privateKey, schemaVersion: 2 }), message: /content schema 3/ },
+    { options: ({ privateKey }) => ({ privateKey, schemaVersion: 2 }), message: /unsupported content schema 2/ },
+    { options: ({ privateKey }) => ({ privateKey, schemaVersion: 5, minimumAppVersionCode: 43 }), message: /unsupported content schema 5/ },
     { options: ({ privateKey }) => ({ privateKey, minimumAppVersionCode: 10 }), message: /at least 11/ },
+    { options: ({ privateKey }) => ({ privateKey, schemaVersion: 4, minimumAppVersionCode: 40 }), message: /at least 41/ },
     { options: ({ privateKey }) => ({ privateKey, version: "1001.7" }), message: /does not match manifest version/ },
     { options: ({ privateKey }) => ({ privateKey, keyId: "untrusted-document-key" }), message: /untrusted key ID/ },
     { options: ({ privateKey }) => ({ privateKey, corruptEntryDigest: true }), message: /SHA-256 mismatch/ },
