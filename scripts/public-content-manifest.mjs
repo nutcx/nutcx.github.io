@@ -47,7 +47,10 @@ const DIRECTORY_RECORD_BYTES = 64;
 const MINIMUM_READER_BY_DOCUMENT_SCHEMA = new Map([
   [3, 11],
   [4, 41],
+  [6, 44],
 ]);
+const VERSIONLESS_ORIGINAL_SLOT_READER = 45;
+const URL_ONLY_ORIGINAL_SLOT_READER = 46;
 const MAX_SIGNED_64 = 9_223_372_036_854_775_807n;
 const MAX_UNSIGNED_32 = 4_294_967_295n;
 const MAX_JSON_DEPTH = 32;
@@ -1041,6 +1044,80 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
   });
 }
 
+function validateOriginalSlot(route, reader) {
+  const label = "resplendent.originalSlot";
+  object(route, label);
+  const fields = ["archive", "region"];
+  if (reader < VERSIONLESS_ORIGINAL_SLOT_READER || Object.hasOwn(route, "resourceVersion")) {
+    fields.push("resourceVersion");
+  }
+  if (reader < URL_ONLY_ORIGINAL_SLOT_READER || Object.hasOwn(route, "sha256")) {
+    fields.push("sha256");
+  }
+  exactKeys(route, label, fields);
+  if (route.region !== "global") fail(`${label}.region must be global`);
+  const archive = string(route.archive, `${label}.archive`);
+  let parsed;
+  try {
+    parsed = new URL(archive);
+  } catch (error) {
+    fail(`${label}.archive must be an absolute HTTPS ZIP URL`, { cause: error });
+  }
+  if (!/^https:\/\/[^@/?#]+\//.test(archive)
+      || /[\s\u0000-\u0020\u007f\\?#]|%(?![0-9a-fA-F]{2})/.test(archive)
+      || !parsed.pathname.endsWith(".zip")
+      || (parsed.hostname === "github.com" && /\/blob\//i.test(parsed.pathname))) {
+    fail(`${label}.archive must be an absolute HTTPS ZIP URL`);
+  }
+  if (Object.hasOwn(route, "resourceVersion")
+      && !/^[0-9]+\.[0-9]+$/.test(string(route.resourceVersion, `${label}.resourceVersion`, { maximum: 64 }))) {
+    fail(`${label}.resourceVersion must be a resource version`);
+  }
+  if (Object.hasOwn(route, "sha256")
+      && !/^[0-9a-f]{64}$/.test(string(route.sha256, `${label}.sha256`))) {
+    fail(`${label}.sha256 must be 64 lowercase hexadecimal digits`);
+  }
+}
+
+function validateResplendentDocument(document) {
+  if (document.schemaVersion !== 6) return;
+  const { heroes } = object(strictJsonParse(decodeUtf8(document.entries.get("heroes.json"), "heroes.json"), {
+    label: "heroes.json",
+    maxValues: 1_000_000,
+  }), "heroes.json");
+  if (!Array.isArray(heroes)) fail("heroes.json.heroes must be an array");
+  for (const hero of heroes) {
+    const { skins } = object(hero, "hero");
+    if (!Array.isArray(skins)) fail("hero.skins must be an array");
+    for (const record of skins) {
+      const skin = object(record, "skin");
+      if (!Object.hasOwn(skin, "resplendent")) continue;
+      integer(skin.category, "Resplendent skin category", 0n, 0n);
+      const resplendent = object(skin.resplendent, "resplendent");
+      const hasOriginalSlot = Object.hasOwn(resplendent, "originalSlot");
+      exactKeys(resplendent, "resplendent", hasOriginalSlot ? ["colors", "originalSlot"] : ["colors"]);
+      const { colors } = resplendent;
+      if (!Array.isArray(colors) || colors.length < 1 || colors.length > 4) {
+        fail("resplendent.colors must contain one to four styles");
+      }
+      const styles = new Set();
+      for (const color of colors) {
+        exactKeys(color, "Resplendent color", ["styleId", "name", "color"]);
+        const style = integer(color.styleId, "Resplendent styleId", 1n, 4n);
+        if (styles.has(style)) fail("resplendent.colors contains a duplicate style ID");
+        styles.add(style);
+        if (/[\u0000-\u001f\u007f]/.test(string(color.name, "Resplendent color name", {
+          minimum: 1, maximum: 80, trimmed: true,
+        }))) fail("Resplendent color name contains a control character");
+        if (!/^#[0-9a-fA-F]{6}$/.test(string(color.color, "Resplendent color swatch"))) {
+          fail("Resplendent color swatch must be a six-digit #RRGGBB color");
+        }
+      }
+      if (hasOriginalSlot) validateOriginalSlot(resplendent.originalSlot, document.minimumAppVersionCode);
+    }
+  }
+}
+
 function projectVerifiedLegacy(entries) {
   const parsed = new Map();
   for (const name of REQUIRED_DOCUMENT_ENTRIES) {
@@ -1157,6 +1234,7 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
     fail("referenced content changed while its signed bundle was being validated");
   }
   const document = verifySignedDocument(documentBytes, metadata.version, publicKeys);
+  validateResplendentDocument(document);
   await validateLegacyFiles(allowlisted.legacyFiles, document.entries);
   const summary = Object.freeze({
     publicationSequence: metadata.publicationSequence.toString(),

@@ -1092,6 +1092,61 @@ test("validates a schema-4 catalog with badges and its legacy companions", async
   } });
 });
 
+test("validates a schema-6 catalog with original-slot colors and its legacy companions", async () => {
+  const documents = await legacyFixtureDocuments();
+  documents["skin-tags.json"].badges = [];
+  const originalSlot = { archive: "https://example.org/layla.zip", region: "global" };
+  documents["heroes.json"].heroes[0].skins[0].resplendent = {
+    colors: [{ styleId: 1, name: "Vermilion", color: "#E34234" }],
+    originalSlot,
+  };
+  await withFixture(async (item) => {
+    await writeLegacyFixture(item.root, await legacyFixtureDocuments());
+    const { summary, entries } = await loadPublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    });
+    assert.equal(summary.minimumAppVersionCode, 46);
+    assert.equal(summary.legacyFileCount, 5);
+    assert.deepEqual({ ...entries["heroes.json"].heroes[0].skins[0].resplendent.originalSlot }, originalSlot);
+  }, { documentOptions: {
+    schemaVersion: 6,
+    minimumAppVersionCode: 46,
+    entries: entriesForDocuments(documents),
+  } });
+});
+
+test("enforces the original-slot route fields required by the declared schema-6 reader", async () => {
+  const archive = "https://example.org/layla.zip";
+  const global = { archive, region: "global" };
+  const cases = [
+    { route: { archive }, reader: 46, message: /missing=\[region\]/ },
+    { route: { ...global, region: "other" }, reader: 46, message: /region must be global/ },
+    { route: global, reader: 45, message: /missing=\[sha256\]/ },
+    { route: { ...global, sha256: "a".repeat(64) }, reader: 44, message: /missing=\[resourceVersion\]/ },
+    { route: { ...global, sha256: "a".repeat(64), resourceVersion: "1232.1" }, reader: 44 },
+    { route: { ...global, sha256: "a".repeat(64) }, reader: 45 },
+  ];
+  for (const { route, reader, message } of cases) {
+    const documents = await legacyFixtureDocuments();
+    documents["skin-tags.json"].badges = [];
+    documents["heroes.json"].heroes[0].skins[0].resplendent = {
+      colors: [{ styleId: 1, name: "Vermilion", color: "#E34234" }],
+      originalSlot: route,
+    };
+    await withFixture(async (item) => {
+      const verified = validatePublicContentDelivery(item.root, {
+        publicKeys: { [KEY_ID]: item.publicKey },
+      });
+      if (message) await assert.rejects(verified, message);
+      else assert.equal((await verified).minimumAppVersionCode, reader);
+    }, { documentOptions: {
+      schemaVersion: 6,
+      minimumAppVersionCode: reader,
+      entries: entriesForDocuments(documents),
+    } });
+  }
+});
+
 test("independently validates the embedded signed MLBytes bundle", async () => {
   const cases = [
     { options: ({ privateKey }) => ({ privateKey, signed: false }), message: /must be signed/ },
@@ -1099,6 +1154,7 @@ test("independently validates the embedded signed MLBytes bundle", async () => {
     { options: ({ privateKey }) => ({ privateKey, schemaVersion: 5, minimumAppVersionCode: 43 }), message: /unsupported content schema 5/ },
     { options: ({ privateKey }) => ({ privateKey, minimumAppVersionCode: 10 }), message: /at least 11/ },
     { options: ({ privateKey }) => ({ privateKey, schemaVersion: 4, minimumAppVersionCode: 40 }), message: /at least 41/ },
+    { options: ({ privateKey }) => ({ privateKey, schemaVersion: 6, minimumAppVersionCode: 43 }), message: /at least 44/ },
     { options: ({ privateKey }) => ({ privateKey, version: "1001.7" }), message: /does not match manifest version/ },
     { options: ({ privateKey }) => ({ privateKey, keyId: "untrusted-document-key" }), message: /untrusted key ID/ },
     { options: ({ privateKey }) => ({ privateKey, corruptEntryDigest: true }), message: /SHA-256 mismatch/ },
