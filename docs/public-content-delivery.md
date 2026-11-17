@@ -137,9 +137,28 @@ The Android client verifies this detached signature before parsing JSON. Host va
 requires a trusted public key whose key ID matches the signature block.
 
 The host validator also verifies the embedded MLBSIG signature on the referenced `Document.mlbytes`
-before parsing its directory. It then enforces MLBytes format 1.0, schema 3, the exact manifest content
-version, minimum app version code 11 or newer, the complete three-entry document profile, bounded
-offsets and sizes, decompression, and each entry's SHA-256 digest.
+before parsing its directory. It enforces MLBytes format 1.0, the exact manifest content version,
+bounded offsets and sizes, decompression, and each entry's SHA-256 digest. The supported document
+profiles are:
+
+| Document schema | Minimum reader baseline | Required entries |
+| --- | --- | --- |
+| 3 | 11 | `heroes.json`, `preparations.json`, `skin-tags.json` |
+| 4 | 41 | Same three entries, with badge support |
+| 6 | 44 | Same three entries, with Resplendent support |
+| 7 | 48 | Same three entries plus `hero-costumes.json` |
+
+Schema 7 retains Resplendent validation and adds a bounded original-skin reference indexed only by
+skin ID. Its root is exactly `{"costumes":{...}}`, containing 1–200,000 canonical positive uint32
+skin IDs within the existing 8 MiB entry limit. Each row requires `heroId`; names, badges and other
+presentation fields remain optional. Reference IDs need not appear in the visible catalog.
+Known presentation fields use the app reader's types and ranges; additional `m_` fields may contain
+bounded strings, booleans, finite numbers and arrays, permitting future reference fields without
+accepting arbitrary objects. Duplicate keys, invalid Unicode, malformed identities and invalid
+field values fail validation. Integer-required fields do not accept floating-point spellings.
+
+Only the original three editorial entries feed the website item projection and the five legacy
+outputs. Adding the reference does not change those outputs or the signed manifest schemas.
 
 ## Website catalog consumer
 

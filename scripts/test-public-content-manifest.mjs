@@ -1147,6 +1147,206 @@ test("enforces the original-slot route fields required by the declared schema-6 
   }
 });
 
+function withCostumeReference(entries = documentEntries(), reference = {
+  costumes: {
+    1251: { heroId: 25, englishName: "Onmyouji Master" },
+    102512: {
+      heroId: 25, englishName: "Feast of Eternity", m_Sort: 5, m_SortImage: 740038010,
+      m_Size: 0.75, m_CollectQuality: 6, m_SkinMessage: "Legend",
+      m_SkinMessagePic: [1, -1], m_ColourTex: [["base_texture"]], m_Enabled: true,
+    },
+  },
+}) {
+  return new Map([...entries, ["hero-costumes.json", Buffer.from(
+    typeof reference === "string" ? reference : JSON.stringify(reference), "utf8",
+  )]]);
+}
+
+test("loads signed schema-7 skin references without changing legacy outputs or web items", async () => {
+  const documents = await legacyFixtureDocuments();
+  documents["skin-tags.json"].badges = [];
+  const entries = withCostumeReference(entriesForDocuments(documents));
+  await withFixture(async (item) => {
+    await writeLegacyFixture(item.root, documents);
+    const loaded = await loadPublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    });
+    assert.equal(loaded.summary.minimumAppVersionCode, 48);
+    assert.equal(loaded.summary.legacyFileCount, 5);
+    const costumes = loaded.entries["hero-costumes.json"].costumes;
+    assert.equal(costumes["102512"].m_Size, 0.75);
+    assert.equal(costumes["102512"].m_SortImage, 740038010);
+    assert.equal(costumes["1251"].englishName, "Onmyouji Master");
+    assert.equal(Object.hasOwn(costumes["1251"], "m_Sort"), false);
+    assert.deepEqual(projectItems(loaded.entries), projectItems(documents));
+    const cli = spawnSync(process.execPath, [validatorPath, item.root,
+      "--public-key", `${KEY_ID}=${item.publicKeyBase64}`], { encoding: "utf8" });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.match(cli.stdout, /5 legacy files/);
+  }, { documentOptions: { schemaVersion: 7, minimumAppVersionCode: 48, entries } });
+});
+
+test("accepts a schema-6 to schema-7 transition while retaining immutable bundles and legacy files", async () => {
+  const documents = await legacyFixtureDocuments();
+  documents["skin-tags.json"].badges = [];
+  const editorialEntries = entriesForDocuments(documents);
+  await withTransition(async ({ oldTree, newTree }) => {
+    await writeLegacyFixture(oldTree.root, documents);
+    await writeLegacyFixture(newTree.root, documents);
+    const result = await validatePublicContentTransition(oldTree.root, newTree.root, {
+      publicKeys: { [KEY_ID]: oldTree.publicKey },
+    });
+    assert.equal(result.contentVersion, "1001.7");
+    assert.equal(result.minimumAppVersionCode, 48);
+    assert.equal(result.legacyFileCount, 5);
+    assert.deepEqual(result.addedContentPaths, ["versions/1001.7/Document.mlbytes"]);
+  }, {
+    previous: { documentOptions: { schemaVersion: 6, minimumAppVersionCode: 46, entries: editorialEntries } },
+    current: { version: "1001.7", documentOptions: {
+      schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(editorialEntries),
+    } },
+  });
+});
+
+test("requires reader 48 and the exact schema-7 entry set without accepting it in older schemas", async () => {
+  const reference = withCostumeReference();
+  const unexpected = new Map(reference);
+  unexpected.delete("hero-costumes.json");
+  unexpected.set("other.json", Buffer.from("{}"));
+  const cases = [
+    { schemaVersion: 7, minimumAppVersionCode: 47, entries: reference, error: /at least 48/ },
+    { schemaVersion: 7, minimumAppVersionCode: 48, entries: documentEntries(), error: /exactly 4 entries/ },
+    { schemaVersion: 7, minimumAppVersionCode: 48, entries: unexpected, error: /undeclared entry/ },
+    { schemaVersion: 6, minimumAppVersionCode: 48, entries: reference, error: /exactly 3 entries/ },
+  ];
+  for (const { error, ...documentOptions } of cases) {
+    await withFixture(async (item) => {
+      await assert.rejects(validatePublicContentDelivery(item.root, {
+        publicKeys: { [KEY_ID]: item.publicKey },
+      }), error);
+    }, { documentOptions });
+  }
+});
+
+test("rejects malformed HeroCostume roots, identities, presentation fields and future field values", async () => {
+  const row = (fields) => JSON.stringify({ costumes: { 1251: { heroId: 25, ...fields } } });
+  const cases = [
+    '{"costumes":{}}',
+    '{"costumes":{},"resourceVersion":"1235.1"}',
+    '{"costumes":{"01251":{"heroId":25}}}',
+    '{"costumes":{"0":{"heroId":25}}}',
+    '{"costumes":{"4294967296":{"heroId":25}}}',
+    '{"costumes":{"1251":{"heroId":25},"1251":{"heroId":26}}}',
+    '{"costumes":{"1251":{}}}',
+    '{"costumes":{"1251":{"heroId":25,"heroId":26}}}',
+    '{"costumes":{"1251":{"heroId":25.0}}}',
+    row({ heroId: -1 }), row({ heroId: 4294967296 }),
+    row({ englishName: "" }), row({ englishName: "x".repeat(4097) }),
+    row({ englishName: "\ud800" }), row({ m_Sort: 2147483648 }),
+    row({ m_Sort: -2147483649 }), row({ m_SortImage: -1 }),
+    row({ m_SortImage: "x".repeat(65536) }),
+    row({ m_CollectQuality: "Legend" }), row({ m_CollectQuality: 2147483648 }),
+    row({ m_SkinMessage: 1 }), row({ m_SkinMessagePic: [[1]] }),
+    row({ m_SkinMessagePic: [2147483648] }),
+    row({ m_ID: 1251 }), row({ m_HeroId: 25 }), row({ m_mName: "name" }),
+    row({ region: "global" }), row({ m_Size: null }), row({ m_Size: { nested: 1 } }),
+    row({ m_Size: [[[1]]] }), row({ m_Size: Array(65536).fill(0) }),
+    row({ m_Size: -2147483649 }), row({ m_Size: 4294967296 }),
+    '{"costumes":{"1251":{"heroId":25,"m_Size":1e999}}}',
+    '{"costumes":{"1251":{"heroId":25,"m_Size":-0}}}',
+    '{"costumes":{"1251":{"heroId":25,"m_Sort":1.0}}}',
+  ];
+  for (const reference of cases) {
+    await withFixture(async (item) => {
+      await assert.rejects(validatePublicContentDelivery(item.root, {
+        publicKeys: { [KEY_ID]: item.publicKey },
+      }), /hero-costumes\.json|HeroCostume/, reference.slice(0, 180));
+    }, { documentOptions: {
+      schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(documentEntries(), reference),
+    } });
+  }
+});
+
+test("accepts bounded sparse HeroCostume fields and a full-size reference beyond manifest JSON limits", async () => {
+  const costumes = Object.fromEntries(Array.from({ length: 1754 }, (_, index) => [
+    `${index + 1}`, { heroId: 0, englishName: `Original ${index + 1}` },
+  ]));
+  costumes["4294967295"] = { heroId: 4294967295, m_Sort: -2147483648,
+    m_SortImage: "Atlas_HeroIcon/TSkin111", m_CollectQuality: 2147483647,
+    m_SkinMessage: "", m_SkinMessagePic: [-2147483648, 2147483647],
+    m_Future: [true, "", -2147483648, 4294967295, [0.5]],
+  };
+  const reference = JSON.stringify({ costumes }).replace('"m_Future":[', '"m_Float":1.0,"m_Future":[');
+  await withFixture(async (item) => {
+    const loaded = await loadPublicContentDelivery(item.root, { publicKeys: { [KEY_ID]: item.publicKey } });
+    assert.equal(Object.keys(loaded.entries["hero-costumes.json"].costumes).length, 1755);
+    assert.equal(loaded.entries["hero-costumes.json"].costumes["4294967295"].m_Float, 1);
+  }, { documentOptions: {
+    schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(documentEntries(), reference),
+  } });
+});
+
+test("enforces the HeroCostume row limit without rejecting legal large reference arrays", async () => {
+  const fields = Object.fromEntries(Array.from({ length: 16 }, (_, index) => [
+    `m_Future${index}`, Array(65535).fill(0),
+  ]));
+  await withFixture(async (item) => {
+    const result = await validatePublicContentDelivery(item.root, { publicKeys: { [KEY_ID]: item.publicKey } });
+    assert.equal(result.minimumAppVersionCode, 48);
+  }, { documentOptions: {
+    schemaVersion: 7, minimumAppVersionCode: 48,
+    entries: withCostumeReference(documentEntries(), { costumes: { 1251: { heroId: 25, ...fields } } }),
+  } });
+  const costumes = Object.fromEntries(Array.from({ length: 200001 }, (_, index) => [
+    `${index + 1}`, { heroId: 0 },
+  ]));
+  await withFixture(async (item) => {
+    await assert.rejects(validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    }), /one to 200000 skin references/);
+  }, { documentOptions: {
+    schemaVersion: 7, minimumAppVersionCode: 48,
+    entries: withCostumeReference(documentEntries(), { costumes }),
+  } });
+});
+
+test("keeps Resplendent route validation active in schema 7", async () => {
+  for (const region of ["global", "other"]) {
+    const documents = await legacyFixtureDocuments();
+    documents["heroes.json"].heroes[0].skins[0].resplendent = {
+      colors: [{ styleId: 1, name: "Vermilion", color: "#E34234" }],
+      originalSlot: { archive: "https://example.org/layla.zip", region },
+    };
+    await withFixture(async (item) => {
+      const result = validatePublicContentDelivery(item.root, { publicKeys: { [KEY_ID]: item.publicKey } });
+      if (region === "global") assert.equal((await result).minimumAppVersionCode, 48);
+      else await assert.rejects(result, /region must be global/);
+    }, { documentOptions: {
+      schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(entriesForDocuments(documents)),
+    } });
+  }
+});
+
+test("rejects tampered schema-7 signatures and reference entry hashes", async () => {
+  await withFixture(async (item) => {
+    const tampered = Buffer.from(item.contentBytes);
+    tampered[tampered.length - 1] ^= 1;
+    await replaceDocument(item, tampered);
+    await assert.rejects(validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    }), /signature does not authenticate/);
+  }, { documentOptions: {
+    schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(),
+  } });
+  await withFixture(async (item) => {
+    await assert.rejects(validatePublicContentDelivery(item.root, {
+      publicKeys: { [KEY_ID]: item.publicKey },
+    }), /hero-costumes\.json.*SHA-256 mismatch/);
+  }, { documentOptions: {
+    schemaVersion: 7, minimumAppVersionCode: 48, entries: withCostumeReference(), corruptEntryDigest: true,
+  } });
+});
+
 test("independently validates the embedded signed MLBytes bundle", async () => {
   const cases = [
     { options: ({ privateKey }) => ({ privateKey, signed: false }), message: /must be signed/ },

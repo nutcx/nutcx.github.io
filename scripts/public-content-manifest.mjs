@@ -48,6 +48,7 @@ const MINIMUM_READER_BY_DOCUMENT_SCHEMA = new Map([
   [3, 11],
   [4, 41],
   [6, 44],
+  [7, 48],
 ]);
 const VERSIONLESS_ORIGINAL_SLOT_READER = 45;
 const URL_ONLY_ORIGINAL_SLOT_READER = 46;
@@ -99,6 +100,11 @@ const REQUIRED_DOCUMENT_ENTRIES = Object.freeze([
   "heroes.json",
   "preparations.json",
   "skin-tags.json",
+]);
+const HERO_COSTUME_ENTRY = "hero-costumes.json";
+const SCHEMA_7_DOCUMENT_ENTRIES = Object.freeze([
+  ...REQUIRED_DOCUMENT_ENTRIES,
+  HERO_COSTUME_ENTRY,
 ]);
 
 export class PublicContentManifestError extends Error {
@@ -868,6 +874,8 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
   if (minimumReader === undefined) {
     fail(`Document.mlbytes uses unsupported content schema ${schemaVersion}`);
   }
+  const requiredEntries = schemaVersion === 7
+    ? SCHEMA_7_DOCUMENT_ENTRIES : REQUIRED_DOCUMENT_ENTRIES;
   const minimumAppVersionCode = bytes.readUInt32LE(24);
   if (minimumAppVersionCode < minimumReader) {
     fail(`Document.mlbytes minimum app version code must be at least ${minimumReader} for content schema ${schemaVersion}`);
@@ -881,8 +889,8 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
     fail(`Document.mlbytes content version ${contentVersion} does not match manifest version ${expectedVersion}`);
   }
   const entryCount = bytes.readUInt32LE(40);
-  if (entryCount !== REQUIRED_DOCUMENT_ENTRIES.length) {
-    fail(`Document.mlbytes must contain exactly ${REQUIRED_DOCUMENT_ENTRIES.length} entries`);
+  if (entryCount !== requiredEntries.length) {
+    fail(`Document.mlbytes must contain exactly ${requiredEntries.length} entries`);
   }
   const directorySize = bytes.readUInt32LE(44);
   if (directorySize < entryCount * DIRECTORY_RECORD_BYTES || directorySize > MAX_DIRECTORY_BYTES) {
@@ -951,7 +959,7 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
     cursor += pathLength;
     const path = decodeUtf8(pathBytes, "Document.mlbytes entry path");
 
-    if (!REQUIRED_DOCUMENT_ENTRIES.includes(path)) {
+    if (!requiredEntries.includes(path)) {
       fail(`Document.mlbytes contains undeclared entry '${path}'`);
     }
     if (seenPaths.has(path)) fail(`Document.mlbytes contains duplicate entry '${path}'`);
@@ -996,8 +1004,8 @@ function verifySignedDocument(bytes, expectedVersion, publicKeys) {
   if (calculatedRawSize !== totalRawSize) {
     fail("Document.mlbytes uncompressed payload total is inconsistent");
   }
-  if (seenPaths.size !== REQUIRED_DOCUMENT_ENTRIES.length
-      || REQUIRED_DOCUMENT_ENTRIES.some((path) => !seenPaths.has(path))) {
+  if (seenPaths.size !== requiredEntries.length
+      || requiredEntries.some((path) => !seenPaths.has(path))) {
     fail("Document.mlbytes entry set is incomplete");
   }
 
@@ -1080,7 +1088,7 @@ function validateOriginalSlot(route, reader) {
 }
 
 function validateResplendentDocument(document) {
-  if (document.schemaVersion !== 6) return;
+  if (document.schemaVersion !== 6 && document.schemaVersion !== 7) return;
   const { heroes } = object(strictJsonParse(decodeUtf8(document.entries.get("heroes.json"), "heroes.json"), {
     label: "heroes.json",
     maxValues: 1_000_000,
@@ -1116,6 +1124,90 @@ function validateResplendentDocument(document) {
       if (hasOriginalSlot) validateOriginalSlot(resplendent.originalSlot, document.minimumAppVersionCode);
     }
   }
+}
+
+function heroCostumeInteger(value, label, minimum = 0n, maximum = MAX_UNSIGNED_32) {
+  if (!(value instanceof JsonNumber) || !/^(?:0|-?[1-9][0-9]*)$/.test(value.source)) {
+    fail(`${label} must be an integer`);
+  }
+  const parsed = BigInt(value.source);
+  if (parsed < minimum || parsed > maximum) fail(`${label} is outside its allowed range`);
+  return Number(parsed);
+}
+
+function heroCostumeField(value, label, depth = 0) {
+  if (typeof value === "string") return string(value, label, { maximum: 65_535 });
+  if (typeof value === "boolean") return value;
+  if (value instanceof JsonNumber) {
+    if (/^-?(?:0|[1-9][0-9]*)$/.test(value.source)) {
+      return heroCostumeInteger(value, label, -2_147_483_648n);
+    }
+    const parsed = Number(value.source);
+    if (!Number.isFinite(parsed)) fail(`${label} must be finite`);
+    return parsed;
+  }
+  if (Array.isArray(value) && depth < 2 && value.length <= 65_535) {
+    return value.map((entry) => heroCostumeField(entry, label, depth + 1));
+  }
+  fail(`${label} contains an unsupported HeroCostume value`);
+}
+
+function parseHeroCostumeReference(bytes) {
+  const root = strictJsonParse(decodeUtf8(bytes, HERO_COSTUME_ENTRY), {
+    label: HERO_COSTUME_ENTRY,
+    // The 8 MiB entry bound also bounds this parser's work. Reference arrays
+    // may legitimately exceed the smaller editorial/manifest value budgets.
+    maxValues: MAX_ENTRY_BYTES,
+  });
+  exactKeys(root, HERO_COSTUME_ENTRY, ["costumes"]);
+  const costumes = object(root.costumes, `${HERO_COSTUME_ENTRY}.costumes`);
+  const rows = Object.entries(costumes);
+  if (rows.length < 1 || rows.length > 200_000) {
+    fail(`${HERO_COSTUME_ENTRY} must contain one to 200000 skin references`);
+  }
+  for (const [id, fields] of rows) {
+    if (!/^[1-9][0-9]{0,9}$/.test(id) || BigInt(id) > MAX_UNSIGNED_32) {
+      fail(`${HERO_COSTUME_ENTRY} keys must be canonical positive uint32 skin IDs`);
+    }
+    const label = `${HERO_COSTUME_ENTRY}.costumes.${id}`;
+    const row = object(fields, label);
+    row.heroId = heroCostumeInteger(row.heroId, `${label}.heroId`);
+    for (const [name, value] of Object.entries(row)) {
+      const fieldLabel = `${label}.${name}`;
+      switch (name) {
+        case "heroId": break;
+        case "englishName":
+          row[name] = string(value, fieldLabel, { minimum: 1, maximum: 4_096 });
+          break;
+        case "m_Sort":
+        case "m_CollectQuality":
+          row[name] = heroCostumeInteger(value, fieldLabel, -2_147_483_648n, 2_147_483_647n);
+          break;
+        case "m_SortImage":
+          row[name] = typeof value === "string"
+            ? string(value, fieldLabel, { maximum: 65_535 })
+            : heroCostumeInteger(value, fieldLabel);
+          break;
+        case "m_SkinMessage":
+          row[name] = string(value, fieldLabel, { maximum: 65_535 });
+          break;
+        case "m_SkinMessagePic":
+          if (!Array.isArray(value) || value.length > 65_535) {
+            fail(`${fieldLabel} must be a bounded integer array`);
+          }
+          row[name] = value.map((entry) => heroCostumeInteger(
+            entry, fieldLabel, -2_147_483_648n, 2_147_483_647n,
+          ));
+          break;
+        default:
+          if (["m_ID", "m_HeroId", "m_mName"].includes(name) || !/^m_[A-Za-z0-9_]{1,62}$/.test(name)) {
+            fail(`${fieldLabel} is an unsupported HeroCostume field`);
+          }
+          row[name] = heroCostumeField(value, fieldLabel);
+      }
+    }
+  }
+  return root;
 }
 
 function projectVerifiedLegacy(entries) {
@@ -1235,6 +1327,8 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
   }
   const document = verifySignedDocument(documentBytes, metadata.version, publicKeys);
   validateResplendentDocument(document);
+  const heroCostumeReference = document.schemaVersion === 7
+    ? parseHeroCostumeReference(document.entries.get(HERO_COSTUME_ENTRY)) : null;
   await validateLegacyFiles(allowlisted.legacyFiles, document.entries);
   const summary = Object.freeze({
     publicationSequence: metadata.publicationSequence.toString(),
@@ -1250,7 +1344,7 @@ async function validateDeliveryInternal(rootDirectory, publicKeys) {
   });
   return { manifestBytes, metadata, versionFiles, legacyPresent: allowlisted.legacyFiles.size !== 0,
     manifestV2Bytes, applicationPolicies,
-    summary, documentEntries: document.entries,
+    summary, documentEntries: document.entries, heroCostumeReference,
     clientFeatures: Object.freeze({ ...manifest.client.features }) };
 }
 
@@ -1268,9 +1362,13 @@ export async function validatePublicContentDelivery(rootDirectory, { publicKeys 
  * manifest. Reuse the verified bytes rather than reopening the content file.
  */
 export async function loadPublicContentDelivery(rootDirectory, { publicKeys } = {}) {
-  const { summary, documentEntries, clientFeatures } = await validateDeliveryInternal(rootDirectory, publicKeys);
+  const { summary, documentEntries, clientFeatures, heroCostumeReference } = await validateDeliveryInternal(rootDirectory, publicKeys);
   const entries = {};
   for (const [name, bytes] of documentEntries) {
+    if (name === HERO_COSTUME_ENTRY) {
+      entries[name] = heroCostumeReference;
+      continue;
+    }
     entries[name] = strictJsonParse(decodeUtf8(bytes, name), {
       label: name,
       maxValues: 1_000_000,
